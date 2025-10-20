@@ -1,0 +1,17 @@
+{
+  "name": "whatsapp-chatbot-saas-starter",
+  "version": "1.1.0",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node src/server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2",
+    "raw-body": "^2.5.2",
+    "googleapis": "^131.0.0",
+    "uuid": "^9.0.1"
+  }
+}
