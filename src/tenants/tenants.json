@@ -1,0 +1,14 @@
+{
+  "default": {
+    "displayName": "Demo Salon",
+    "wabaToken": "YOUR_DEFAULT_WABA_TOKEN",
+    "phoneNumberId": "YOUR_DEFAULT_PHONE_NUMBER_ID",
+    "graphVersion": "v20.0",
+    "calendar": {
+      "enabled": false,
+      "oauthClient": "src/config/google_client_secret.json",
+      "tokenFile": "src/config/google_token_default.json",
+      "calendarId": "primary"
+    }
+  }
+}
