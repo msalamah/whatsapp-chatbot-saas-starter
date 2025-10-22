@@ -9,7 +9,7 @@ Multi-tenant WhatsApp Business webhook starter with calendar integration for sal
 # (fills node_modules, creates .env if missing, prints next steps)
 ```
 
-1. Edit `.env` with your sandbox `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, and optional `APP_SECRET`.
+1. Edit `.env` with your sandbox `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, optional `APP_SECRET`, and (for AI responses) `OPENAI_API_KEY`.
 2. Start the webhook server: `npm run dev`
 3. Expose port 3000: `npx ngrok http 3000`
 4. In Meta App → WhatsApp → Configuration  
@@ -25,6 +25,12 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so
 - When `calendar.enabled` is `true` and Google credentials are supplied, the bot calls the Calendar API `freebusy` endpoint to surface the next open slots.
 - With calendar disabled, slots are generated from the working-hours schedule so you can demo the flow without Google OAuth.
 - Slot picks are stored on disk and acknowledgements reuse the tenant timezone so approvals persist across restarts.
+
+### AI conversation
+
+- Provide `OPENAI_API_KEY` (and optional `OPENAI_MODEL`, default `gpt-4.1-mini`) to enable natural-language understanding powered by OpenAI.
+- The assistant detects intents (bookings, status checks, cancellations, FAQs) and automatically shows availability or replies with context-aware answers.
+- Without an API key, a rules-based fallback still handles core booking triggers so demos continue to work.
 
 ### Health check
 

@@ -15,7 +15,7 @@ if [ ! -f ".env" ]; then
   echo "📝 Creating .env from template..."
   cp .env.example .env
   echo "   -> Update .env with your WHATSAPP_VERIFY_TOKEN, WABA_TOKEN, PHONE_NUMBER_ID,"
-  echo "      GRAPH_VERSION, and APP_SECRET before running the server."
+  echo "      GRAPH_VERSION, APP_SECRET, and (optionally) OPENAI_API_KEY before running the server."
 else
   echo "✅ .env already exists. Skipping copy."
 fi

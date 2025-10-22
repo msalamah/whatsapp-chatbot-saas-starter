@@ -7,7 +7,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [x] Add error handling for webhook processing and upstream API failures
 - [x] Introduce persistence for tenants and bookings (JSON store with disk-backed pending approvals)
 - [x] Enhance booking flow to surface real availability and timezone handling
-- [ ] Integrate LLM conversation orchestration (OpenAI) for natural-language booking flows
+- [x] Integrate LLM conversation orchestration (OpenAI) for natural-language booking flows
 
 ## Tenant & salon onboarding
 - [ ] Build secure endpoints or dashboard for tenant CRUD and token rotation
