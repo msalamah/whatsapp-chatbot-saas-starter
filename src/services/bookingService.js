@@ -3,6 +3,7 @@ import { getTenantByPhoneNumberId, getTenantByKey } from "../tenants/tenantManag
 import { createTentativeEvent, confirmEvent, cancelEvent } from "./calendarService.js";
 import { logger } from "../utils/logger.js";
 import { savePendingBooking, getPendingBooking, deletePendingBooking } from "./pendingBookingStore.js";
+import { getAvailableSlots } from "./availabilityService.js";
 
 export async function handleIncomingChange(change) {
   const value = change.value || {};
@@ -26,19 +27,29 @@ export async function handleIncomingChange(change) {
     if (!text) { await sendText(tenant.key, from, "Got it ✅"); continue; }
 
     if (/^(book|hair|nail|appointment|תור|حجز)/i.test(text)) {
-      await sendButtons(tenant.key, from, "Pick a time:", [
-        { id: "slot_2025-11-13T14:30:00+02:00", title: "14:30" },
-        { id: "slot_2025-11-13T16:30:00+02:00", title: "16:30" }
-      ]); continue;
+      const slots = await getAvailableSlots(tenant, { limit: 3 });
+      if (!slots.length) {
+        await sendText(tenant.key, from, "Sorry, we're fully booked. Try another time or contact the salon directly.");
+        continue;
+      }
+      const timezone = slots[0].timezone;
+      await sendButtons(tenant.key, from, `Pick a time (${timezone}):`, slots.map(slot => ({
+        id: `slot_${slot.startISO}`,
+        title: slot.buttonLabel
+      })));
+      continue;
     }
 
     if (text.startsWith("slot_")) {
       const startISO = text.replace("slot_", "");
-      const endISO = new Date(new Date(startISO).getTime() + 45*60000).toISOString();
+      const durationMinutes = tenant.calendar?.slotDurationMinutes || 45;
+      const endISO = new Date(new Date(startISO).getTime() + durationMinutes * 60000).toISOString();
       const temp = await createTentativeEvent(tenant, "Haircut", startISO, endISO, `Customer ${from}`, [{ email: "owner@example.com" }]);
       const eventId = temp?.id || `dev-${Math.random().toString(36).slice(2)}`;
-      savePendingBooking(from, { tenantKey: tenant.key, eventId, startISO, endISO, service: "Haircut" });
-      await sendButtons(tenant.key, from, "Thanks! Waiting for approval. You can:", [
+      const timeZone = tenant.calendar?.timezone || "UTC";
+      const slotLabel = new Date(startISO).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone });
+      savePendingBooking(from, { tenantKey: tenant.key, eventId, startISO, endISO, service: "Haircut", slotLabel, timeZone });
+      await sendButtons(tenant.key, from, `Thanks! Waiting for approval for ${slotLabel}. You can:`, [
         { id: "approve_me", title: "Approve (Owner)" },
         { id: "reject_me", title: "Reject" }
       ]); continue;
@@ -49,7 +60,7 @@ export async function handleIncomingChange(change) {
       if (!data) { await sendText(tenant.key, from, "No pending booking."); continue; }
       const targetTenant = getTenantByKey(data.tenantKey) || tenant;
       await confirmEvent(targetTenant, data.eventId);
-      await sendText(targetTenant.key, from, "Approved ✅ See you then!");
+      await sendText(targetTenant.key, from, `Approved ✅ See you on ${data.slotLabel || "the scheduled time"}!`);
       deletePendingBooking(from); continue;
     }
 
@@ -58,7 +69,7 @@ export async function handleIncomingChange(change) {
       if (!data) { await sendText(tenant.key, from, "No pending booking."); continue; }
       const targetTenant = getTenantByKey(data.tenantKey) || tenant;
       await cancelEvent(targetTenant, data.eventId);
-      await sendText(targetTenant.key, from, "Cancelled ❌");
+      await sendText(targetTenant.key, from, `Cancelled ❌ ${data.slotLabel ? `The slot ${data.slotLabel} is now open.` : ""}`.trim());
       deletePendingBooking(from); continue;
     }
 

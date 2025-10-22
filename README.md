@@ -19,6 +19,13 @@ Multi-tenant WhatsApp Business webhook starter with calendar integration for sal
 
 Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so checked-in defaults stay safe. Runtime state (pending approvals, etc.) is written to `data/pending-bookings.json` and survives restarts.
 
+### Availability & calendar
+
+- Configure `calendar.timezone`, `slotDurationMinutes`, and `workingHours` per tenant in `src/tenants/tenants.json`.
+- When `calendar.enabled` is `true` and Google credentials are supplied, the bot calls the Calendar API `freebusy` endpoint to surface the next open slots.
+- With calendar disabled, slots are generated from the working-hours schedule so you can demo the flow without Google OAuth.
+- Slot picks are stored on disk and acknowledgements reuse the tenant timezone so approvals persist across restarts.
+
 ### Health check
 
 - `curl -I http://localhost:3000/webhook` should return `403` (signature required).  

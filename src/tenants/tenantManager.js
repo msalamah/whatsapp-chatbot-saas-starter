@@ -20,7 +20,17 @@ export function loadTenants() {
             enabled: false,
             oauthClient: "src/config/google_client_secret.json",
             tokenFile: "src/config/google_token_default.json",
-            calendarId: "primary"
+            calendarId: "primary",
+            timezone: "America/New_York",
+            slotDurationMinutes: 45,
+            workingHours: [
+              { day: 1, start: "09:00", end: "17:00" },
+              { day: 2, start: "09:00", end: "17:00" },
+              { day: 3, start: "09:00", end: "17:00" },
+              { day: 4, start: "09:00", end: "17:00" },
+              { day: 5, start: "09:00", end: "17:00" },
+              { day: 6, start: "10:00", end: "14:00" }
+            ]
           }
         }
       };
@@ -67,7 +77,17 @@ export async function registerTenant({ displayName, wabaToken, phoneNumberId, gr
       enabled: !!calendar.enabled,
       oauthClient: calendar.oauthClient || "src/config/google_client_secret.json",
       tokenFile: calendar.tokenFile || "src/config/google_token_default.json",
-      calendarId: calendar.calendarId || "primary"
+      calendarId: calendar.calendarId || "primary",
+      timezone: calendar.timezone || "UTC",
+      slotDurationMinutes: calendar.slotDurationMinutes || 45,
+      workingHours: calendar.workingHours?.length ? calendar.workingHours : [
+        { day: 1, start: "09:00", end: "17:00" },
+        { day: 2, start: "09:00", end: "17:00" },
+        { day: 3, start: "09:00", end: "17:00" },
+        { day: 4, start: "09:00", end: "17:00" },
+        { day: 5, start: "09:00", end: "17:00" },
+        { day: 6, start: "10:00", end: "14:00" }
+      ]
     }
   };
   saveTenants(tenants);

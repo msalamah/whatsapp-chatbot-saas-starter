@@ -8,7 +8,17 @@
       "enabled": false,
       "oauthClient": "src/config/google_client_secret.json",
       "tokenFile": "src/config/google_token_default.json",
-      "calendarId": "primary"
+      "calendarId": "primary",
+      "timezone": "America/New_York",
+      "slotDurationMinutes": 45,
+      "workingHours": [
+        { "day": 1, "start": "09:00", "end": "17:00" },
+        { "day": 2, "start": "09:00", "end": "17:00" },
+        { "day": 3, "start": "09:00", "end": "17:00" },
+        { "day": 4, "start": "09:00", "end": "17:00" },
+        { "day": 5, "start": "09:00", "end": "17:00" },
+        { "day": 6, "start": "10:00", "end": "14:00" }
+      ]
     }
   }
 }
