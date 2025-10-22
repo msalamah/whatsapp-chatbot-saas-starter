@@ -1,10 +1,11 @@
 import OpenAI from "openai";
+import fetch from "node-fetch";
 import { logger } from "../utils/logger.js";
 import { findServiceByText, getServiceById } from "../tenants/tenantManager.js";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY }) : null;
+const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY, fetch }) : null;
 
 const FALLBACK_MESSAGES = {
   introduction: {
