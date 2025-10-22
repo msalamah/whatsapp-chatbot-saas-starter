@@ -28,6 +28,7 @@ const FALLBACK_MESSAGES = {
 };
 
 const RESPONSE_SCHEMA = {
+  type: "json_schema",
   name: "salon_chatbot_plan",
   schema: {
     type: "object",
@@ -42,7 +43,8 @@ const RESPONSE_SCHEMA = {
     },
     required: ["action", "response"],
     additionalProperties: false
-  }
+  },
+  strict: false
 };
 
 export async function evaluateUserMessage({ tenant, text, pendingBooking = null }) {
@@ -63,9 +65,8 @@ export async function evaluateUserMessage({ tenant, text, pendingBooking = null 
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        response_format: {
-          type: "json_schema",
-          json_schema: RESPONSE_SCHEMA
+        text: {
+          format: RESPONSE_SCHEMA
         }
       });
       const content = response.output?.[0]?.content?.[0]?.text;
