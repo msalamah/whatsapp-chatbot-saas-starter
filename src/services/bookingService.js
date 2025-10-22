@@ -1,9 +1,8 @@
 import { sendButtons, sendText } from "./whatsappService.js";
-import { getTenantByPhoneNumberId } from "../tenants/tenantManager.js";
+import { getTenantByPhoneNumberId, getTenantByKey } from "../tenants/tenantManager.js";
 import { createTentativeEvent, confirmEvent, cancelEvent } from "./calendarService.js";
 import { logger } from "../utils/logger.js";
-
-const pending = new Map();
+import { savePendingBooking, getPendingBooking, deletePendingBooking } from "./pendingBookingStore.js";
 
 export async function handleIncomingChange(change) {
   const value = change.value || {};
@@ -38,7 +37,7 @@ export async function handleIncomingChange(change) {
       const endISO = new Date(new Date(startISO).getTime() + 45*60000).toISOString();
       const temp = await createTentativeEvent(tenant, "Haircut", startISO, endISO, `Customer ${from}`, [{ email: "owner@example.com" }]);
       const eventId = temp?.id || `dev-${Math.random().toString(36).slice(2)}`;
-      pending.set(from, { tenant, eventId });
+      savePendingBooking(from, { tenantKey: tenant.key, eventId, startISO, endISO, service: "Haircut" });
       await sendButtons(tenant.key, from, "Thanks! Waiting for approval. You can:", [
         { id: "approve_me", title: "Approve (Owner)" },
         { id: "reject_me", title: "Reject" }
@@ -46,19 +45,21 @@ export async function handleIncomingChange(change) {
     }
 
     if (text === "approve_me") {
-      const data = pending.get(from);
+      const data = getPendingBooking(from);
       if (!data) { await sendText(tenant.key, from, "No pending booking."); continue; }
-      await confirmEvent(data.tenant, data.eventId);
-      await sendText(tenant.key, from, "Approved ✅ See you then!");
-      pending.delete(from); continue;
+      const targetTenant = getTenantByKey(data.tenantKey) || tenant;
+      await confirmEvent(targetTenant, data.eventId);
+      await sendText(targetTenant.key, from, "Approved ✅ See you then!");
+      deletePendingBooking(from); continue;
     }
 
     if (text === "reject_me") {
-      const data = pending.get(from);
+      const data = getPendingBooking(from);
       if (!data) { await sendText(tenant.key, from, "No pending booking."); continue; }
-      await cancelEvent(data.tenant, data.eventId);
-      await sendText(tenant.key, from, "Cancelled ❌");
-      pending.delete(from); continue;
+      const targetTenant = getTenantByKey(data.tenantKey) || tenant;
+      await cancelEvent(targetTenant, data.eventId);
+      await sendText(targetTenant.key, from, "Cancelled ❌");
+      deletePendingBooking(from); continue;
     }
 
     await sendText(tenant.key, from, "Hi! I can help you book a service. Say 'book' to get started.");

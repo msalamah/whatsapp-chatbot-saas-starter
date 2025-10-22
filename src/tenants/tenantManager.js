@@ -37,6 +37,14 @@ export function saveTenants(obj) {
   return cache;
 }
 
+export function getTenantByKey(key) {
+  const tenants = loadTenants();
+  if (!key) return null;
+  const t = tenants[key];
+  if (!t) return null;
+  return { key, ...t };
+}
+
 export function getTenantByPhoneNumberId(phoneNumberId) {
   const tenants = loadTenants();
   for (const [key, t] of Object.entries(tenants)) {

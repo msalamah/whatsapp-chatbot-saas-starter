@@ -1,8 +1,8 @@
 {
   "default": {
     "displayName": "Demo Salon",
-    "wabaToken": "YOUR_DEFAULT_WABA_TOKEN",
-    "phoneNumberId": "YOUR_DEFAULT_PHONE_NUMBER_ID",
+    "wabaToken": "",
+    "phoneNumberId": "",
     "graphVersion": "v20.0",
     "calendar": {
       "enabled": false,
