@@ -30,6 +30,7 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so
 
 - Provide `OPENAI_API_KEY` (and optional `OPENAI_MODEL`, default `gpt-4.1-mini`) to enable natural-language understanding powered by OpenAI.
 - The assistant detects intents (bookings, status checks, cancellations, FAQs) and automatically shows availability or replies with context-aware answers.
+- Responses mirror the language of the customer (supports English, Hebrew, Arabic out of the box; other languages fall back to English unless handled by the LLM).
 - Without an API key, a rules-based fallback still handles core booking triggers so demos continue to work.
 
 ### Health check
