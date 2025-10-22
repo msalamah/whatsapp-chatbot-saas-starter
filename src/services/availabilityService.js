@@ -17,7 +17,7 @@ export async function getAvailableSlots(tenant, options = {}) {
   const timezone = calendarCfg.timezone || "UTC";
   const windowDays = options.windowDays || 3;
   const limit = options.limit || 3;
-  const slotDurationMinutes = calendarCfg.slotDurationMinutes || 45;
+  const slotDurationMinutes = options.durationMinutes || calendarCfg.slotDurationMinutes || 45;
 
   const now = (options.start
     ? DateTime.fromISO(options.start, { zone: timezone })

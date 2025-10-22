@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { logger } from "../utils/logger.js";
+import { findServiceByText, getServiceById } from "../tenants/tenantManager.js";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
@@ -39,7 +40,7 @@ const RESPONSE_SCHEMA = {
 export async function evaluateUserMessage({ tenant, text, pendingBooking = null }) {
   if (!text) {
     const fallback = pickLocalized("unavailable", detectLanguage(text));
-    return { action: "UNKNOWN", response: fallback };
+    return { action: "UNKNOWN", response: fallback, language: "default" };
   }
 
   const inferredLang = detectLanguage(text);
@@ -70,12 +71,14 @@ export async function evaluateUserMessage({ tenant, text, pendingBooking = null 
     }
   }
 
-  return ruleBasedFallback({ tenant, text, pendingBooking, inferredLang });
+  const fallback = ruleBasedFallback({ tenant, text, pendingBooking, inferredLang });
+  return normalizeResult(fallback, tenant, pendingBooking, inferredLang);
 }
 
 function buildSystemPrompt(tenant, pendingBooking, lang) {
   const salonName = tenant?.displayName || "the salon";
   const timezone = tenant?.calendar?.timezone || "UTC";
+  const servicesContext = describeServices(tenant);
   return [
     `You are an AI assistant for ${salonName}.`,
     "You must respond in the salon's tone: friendly, concise, helpful.",
@@ -89,6 +92,7 @@ function buildSystemPrompt(tenant, pendingBooking, lang) {
     " - UNKNOWN: you cannot determine the intent.",
     "Always include a helpful short reply in the response field.",
     `Current timezone: ${timezone}.`,
+    servicesContext ? `Available services (return service IDs in the 'service' field when relevant):\n${servicesContext}` : "No specific service catalog provided. If the user specifies a service, echo their wording.",
     pendingBooking
       ? `Pending booking exists: ${pendingBooking.slotLabel || pendingBooking.startISO}, awaiting owner approval.`
       : "There is no pending booking right now.",
@@ -110,17 +114,21 @@ function normalizeResult(result, tenant, pendingBooking, lang) {
   const action = result.action || "UNKNOWN";
   let response = (result.response || "").trim();
   if (!response) response = defaultResponseForAction(action, tenant, pendingBooking, lang);
+  const serviceInfo = resolveServiceFromString(tenant, result.service);
   return {
     action,
     response,
-    service: result.service?.trim() || null,
-    preferred_time: result.preferred_time?.trim() || null
+    serviceId: serviceInfo?.id || (result.service?.trim() || null),
+    serviceName: serviceInfo?.name || null,
+    preferred_time: result.preferred_time?.trim() || null,
+    language: result.language || lang
   };
 }
 
 function ruleBasedFallback({ tenant, text, pendingBooking, inferredLang }) {
   const lower = text.toLowerCase();
   const language = inferredLang || "default";
+  const matchedService = findServiceByText(tenant, text);
   if (pendingBooking && /(status|confirm|approved|pending|update)/.test(lower)) {
     return {
       action: "PENDING_STATUS",
@@ -128,31 +136,39 @@ function ruleBasedFallback({ tenant, text, pendingBooking, inferredLang }) {
         "pending_status",
         language,
         pendingBooking.slotLabel || "the requested time"
-      )
+      ),
+      service: pendingBooking?.serviceId || null,
+      language
     };
   }
   if (/(cancel|can't make it|reschedule|בטל|לבטל|الغاء|إلغاء)/.test(lower)) {
     return {
       action: "CANCEL_BOOKING",
-      response: pickLocalized("cancel_hint", language)
+      response: pickLocalized("cancel_hint", language),
+      service: matchedService?.id || pendingBooking?.serviceId || null,
+      language
     };
   }
   if (/(book|appointment|schedule|hair|nail|massage|available|slot|time|תור|שעה|book me|حجز|موعد)/.test(lower)) {
     return {
       action: "SHOW_AVAILABILITY",
-      response: pickLocalized("show_slots", language)
+      response: pickLocalized("show_slots", language),
+      service: matchedService?.id || null,
+      language
     };
   }
   if (/(hi|hello|hey|thanks|thank you|תודה|שלום|مرحبا|شكرا)/.test(lower)) {
     return {
       action: "ANSWER",
-      response: pickLocalized("greeting", language, tenant?.displayName || "the salon")
+      response: pickLocalized("greeting", language, tenant?.displayName || "the salon"),
+      language
     };
   }
   const fallback = pickLocalized("unavailable", language);
   return {
     action: "UNKNOWN",
-    response: fallback
+    response: fallback,
+    language
   };
 }
 
@@ -181,6 +197,25 @@ function detectLanguage(text = "") {
   if (/[א-ת]/.test(sample)) return "he";
   if (/[ء-ي]/.test(sample)) return "ar";
   return "default";
+}
+
+function describeServices(tenant) {
+  if (!tenant?.services?.length) return "";
+  return tenant.services
+    .map((svc) => {
+      const duration = svc.minMinutes === svc.maxMinutes
+        ? `${svc.minMinutes} min`
+        : `${svc.minMinutes}-${svc.maxMinutes} min`;
+      const price = svc.price ? `${svc.currency || "USD"} ${svc.price}` : "price on request";
+      return `${svc.id}: ${svc.name} (${duration}, ${price}) - ${svc.description || "No description"}`;
+    })
+    .join("\n");
+}
+
+function resolveServiceFromString(tenant, raw) {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  return getServiceById(tenant, trimmed) || findServiceByText(tenant, trimmed);
 }
 
 const LOCALIZED_STRINGS = {

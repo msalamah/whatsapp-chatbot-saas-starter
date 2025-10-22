@@ -26,6 +26,12 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so
 - With calendar disabled, slots are generated from the working-hours schedule so you can demo the flow without Google OAuth.
 - Slot picks are stored on disk and acknowledgements reuse the tenant timezone so approvals persist across restarts.
 
+### Service catalog
+
+- Declare each salon service under `services` in `src/tenants/tenants.json` (id, name, min/max duration minutes, price, optional keywords/description).
+- Slot lengths adapt automatically to the selected service (e.g., color uses 90 minutes vs. haircut 45 minutes).
+- The assistant references service pricing/durations when suggesting times and stores the chosen service with the pending booking for owner approvals.
+
 ### AI conversation
 
 - Provide `OPENAI_API_KEY` (and optional `OPENAI_MODEL`, default `gpt-4.1-mini`) to enable natural-language understanding powered by OpenAI.

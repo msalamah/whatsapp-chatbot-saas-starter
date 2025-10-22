@@ -9,7 +9,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [x] Enhance booking flow to surface real availability and timezone handling
 - [x] Integrate LLM conversation orchestration (OpenAI) for natural-language booking flows
 - [x] Ensure AI replies mirror customer language automatically
-- [ ] Model tenant service catalog (duration ranges, pricing) and propagate into booking flow
+- [x] Model tenant service catalog (duration ranges, pricing) and propagate into booking flow
 
 ## Tenant & salon onboarding
 - [ ] Build secure endpoints or dashboard for tenant CRUD and token rotation

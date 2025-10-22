@@ -4,6 +4,38 @@
     "wabaToken": "",
     "phoneNumberId": "",
     "graphVersion": "v20.0",
+    "services": [
+      {
+        "id": "haircut",
+        "name": "Haircut",
+        "minMinutes": 30,
+        "maxMinutes": 45,
+        "price": 45,
+        "currency": "USD",
+        "description": "Wash, cut, and style",
+        "keywords": ["haircut", "cut", "trim"]
+      },
+      {
+        "id": "color",
+        "name": "Hair Color",
+        "minMinutes": 60,
+        "maxMinutes": 90,
+        "price": 120,
+        "currency": "USD",
+        "description": "Full color application",
+        "keywords": ["color", "dye", "highlights"]
+      },
+      {
+        "id": "mani",
+        "name": "Manicure",
+        "minMinutes": 40,
+        "maxMinutes": 60,
+        "price": 35,
+        "currency": "USD",
+        "description": "Manicure with polish",
+        "keywords": ["mani", "manicure", "nails"]
+      }
+    ],
     "calendar": {
       "enabled": false,
       "oauthClient": "src/config/google_client_secret.json",
