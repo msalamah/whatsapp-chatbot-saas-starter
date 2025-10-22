@@ -9,6 +9,8 @@
   "dependencies": {
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "fetch-blob": "^4.0.0",
+    "form-data": "^4.0.4",
     "googleapis": "^131.0.0",
     "luxon": "^3.7.2",
     "node-fetch": "^3.3.2",

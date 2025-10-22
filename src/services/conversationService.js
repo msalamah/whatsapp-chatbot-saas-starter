@@ -1,10 +1,20 @@
 import OpenAI from "openai";
-import fetch from "node-fetch";
+import fetch, { Headers, Request, Response } from "node-fetch";
+import FormData from "form-data";
+import Blob from "fetch-blob";
+import File from "fetch-blob/file.js";
 import { logger } from "../utils/logger.js";
 import { findServiceByText, getServiceById } from "../tenants/tenantManager.js";
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+if (!globalThis.fetch) globalThis.fetch = fetch;
+if (!globalThis.Headers) globalThis.Headers = Headers;
+if (!globalThis.Request) globalThis.Request = Request;
+if (!globalThis.Response) globalThis.Response = Response;
+if (!globalThis.FormData) globalThis.FormData = FormData;
+if (!globalThis.Blob) globalThis.Blob = Blob;
+if (!globalThis.File) globalThis.File = File;
 const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY, fetch }) : null;
 
 const FALLBACK_MESSAGES = {
