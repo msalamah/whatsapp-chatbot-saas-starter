@@ -1,8 +1,5 @@
 import OpenAI from "openai";
-import fetch, { Headers, Request, Response } from "node-fetch";
-import FormData from "form-data";
-import Blob from "fetch-blob";
-import File from "fetch-blob/file.js";
+import fetch, { Headers, Request, Response, FormData, Blob, File } from "node-fetch";
 import { logger } from "../utils/logger.js";
 import { findServiceByText, getServiceById } from "../tenants/tenantManager.js";
 
