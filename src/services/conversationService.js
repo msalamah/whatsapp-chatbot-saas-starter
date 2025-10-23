@@ -92,6 +92,8 @@ function buildSystemPrompt(tenant, pendingBooking, lang) {
     `You are an AI assistant for ${salonName}.`,
     "You must respond in the salon's tone: friendly, concise, helpful.",
     "Detect the language of the customer message and WRITE YOUR ENTIRE RESPONSE in that language unless the user explicitly requests another language.",
+    "Stay focused on the business. If the user asks for chit-chat, math, trivia, or anything unrelated to appointments, services, policies, or the business itself, politely decline.",
+    "When declining, set action to UNKNOWN and remind them you can help with bookings, services, or business information.",
     "Detect user intent and choose one ACTION from:",
     " - SHOW_AVAILABILITY: user wants to book or change an appointment.",
     " - PENDING_STATUS: user asks about existing pending booking or approval.",
@@ -138,6 +140,7 @@ function ruleBasedFallback({ tenant, text, pendingBooking, inferredLang }) {
   const lower = text.toLowerCase();
   const language = inferredLang || "default";
   const matchedService = findServiceByText(tenant, text);
+  const salonName = tenant?.displayName || "the business";
   if (pendingBooking && /(status|confirm|approved|pending|update)/.test(lower)) {
     return {
       action: "PENDING_STATUS",
@@ -173,7 +176,7 @@ function ruleBasedFallback({ tenant, text, pendingBooking, inferredLang }) {
       language
     };
   }
-  const fallback = pickLocalized("unavailable", language);
+  const fallback = pickLocalized("out_of_scope", language, salonName);
   return {
     action: "UNKNOWN",
     response: fallback,
@@ -196,7 +199,7 @@ function defaultResponseForAction(action, tenant, pendingBooking, lang) {
     case "ANSWER":
       return pickLocalized("greeting", lang, tenant?.displayName || "the salon");
     default:
-      return pickLocalized("unavailable", lang);
+      return pickLocalized("out_of_scope", lang, tenant?.displayName || "the business");
   }
 }
 
@@ -257,6 +260,11 @@ const LOCALIZED_STRINGS = {
     default: "I'll let the salon know you'd like a human to respond. Expect a follow-up soon.",
     he: "אעדכן את הסלון שאתה מעוניין לדבר עם נציג. נחזור אליך בקרוב.",
     ar: "سأبلغ الصالون بأنك ترغب بالتواصل مع شخص. سنتواصل معك قريباً."
+  },
+  out_of_scope: {
+    default: (name) => `I'm here to help with bookings and services for ${name}. Let me know if you need anything related to the business.`,
+    he: (name) => `אני יכולה לעזור רק בנושאים הקשורים ל${name}. שאל אותי על שירותים או תורים ונמשיך משם.`,
+    ar: (name) => `يمكنني المساعدة فقط فيما يتعلق بـ${name}، مثل المواعيد أو الخدمات. أخبرني بما تحتاجه حول الصالون.`
   },
   unavailable: FALLBACK_MESSAGES.unavailable
 };

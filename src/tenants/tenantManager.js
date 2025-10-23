@@ -108,6 +108,18 @@ export function getTenantByPhoneNumberId(phoneNumberId) {
   return { key: "default", ...d };
 }
 
+export function listTenants({ includeSensitive = false } = {}) {
+  const tenants = loadTenants();
+  return Object.entries(tenants).map(([key, tenant]) => formatTenantResponse({ key, tenant, includeSensitive }));
+}
+
+export function getTenantSummary(key, { includeSensitive = false } = {}) {
+  const tenants = loadTenants();
+  const tenant = tenants[key];
+  if (!tenant) return null;
+  return formatTenantResponse({ key, tenant, includeSensitive });
+}
+
 export async function registerTenant({ displayName, wabaToken, phoneNumberId, graphVersion = "v20.0", calendar = {}, services = [] }) {
   if (!displayName || !wabaToken || !phoneNumberId) throw new Error("displayName, wabaToken, phoneNumberId are required");
   const tenants = loadTenants();
@@ -124,6 +136,58 @@ export async function registerTenant({ displayName, wabaToken, phoneNumberId, gr
   };
   saveTenants(tenants);
   return tenantKey;
+}
+
+export function updateTenant(key, updates = {}) {
+  if (!key) throw new Error("tenant key is required");
+  const tenants = loadTenants();
+  const existing = tenants[key];
+  if (!existing) throw new Error(`Tenant '${key}' not found`);
+
+  const nextServices = updates.services ? normalizeServices(updates.services) : existing.services;
+  const nextCalendar = updates.calendar
+    ? ensureCalendarDefaults({ ...existing.calendar, ...updates.calendar })
+    : existing.calendar;
+
+  const updated = {
+    ...existing,
+    displayName: updates.displayName ?? existing.displayName,
+    graphVersion: updates.graphVersion ?? existing.graphVersion,
+    phoneNumberId: updates.phoneNumberId ?? existing.phoneNumberId,
+    services: nextServices,
+    calendar: nextCalendar
+  };
+
+  if (typeof updates.wabaToken === "string" && updates.wabaToken.trim()) {
+    updated.wabaToken = updates.wabaToken.trim();
+  }
+
+  tenants[key] = updated;
+  saveTenants(tenants);
+  return { key, ...updated };
+}
+
+export function rotateTenantToken(key, newToken) {
+  if (!key) throw new Error("tenant key is required");
+  if (!newToken || !newToken.trim()) throw new Error("new token must be provided");
+  const tenants = loadTenants();
+  const existing = tenants[key];
+  if (!existing) throw new Error(`Tenant '${key}' not found`);
+  tenants[key] = {
+    ...existing,
+    wabaToken: newToken.trim()
+  };
+  saveTenants(tenants);
+  return { key, ...tenants[key] };
+}
+
+export function deleteTenant(key) {
+  if (!key) throw new Error("tenant key is required");
+  if (key === "default") throw new Error("default tenant cannot be deleted");
+  const tenants = loadTenants();
+  if (!tenants[key]) throw new Error(`Tenant '${key}' not found`);
+  delete tenants[key];
+  saveTenants(tenants);
 }
 
 export function getServiceById(tenant, serviceId) {
@@ -171,4 +235,25 @@ export function findServiceByText(tenant, text) {
 export function getDefaultService(tenant) {
   if (!tenant?.services?.length) return null;
   return tenant.services[0];
+}
+
+function formatTenantResponse({ key, tenant, includeSensitive }) {
+  const maskedToken = tenant.wabaToken ? maskToken(tenant.wabaToken) : null;
+  return {
+    key,
+    displayName: tenant.displayName,
+    phoneNumberId: tenant.phoneNumberId,
+    graphVersion: tenant.graphVersion,
+    calendar: tenant.calendar,
+    services: tenant.services,
+    wabaToken: includeSensitive ? tenant.wabaToken : undefined,
+    wabaTokenPreview: maskedToken
+  };
+}
+
+function maskToken(token) {
+  if (!token) return null;
+  const trimmed = token.trim();
+  if (trimmed.length <= 4) return trimmed;
+  return `${"*".repeat(Math.max(0, trimmed.length - 4))}${trimmed.slice(-4)}`;
 }

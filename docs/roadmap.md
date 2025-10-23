@@ -12,9 +12,15 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [x] Model tenant service catalog (duration ranges, pricing) and propagate into booking flow
 
 ## Tenant & salon onboarding
-- [ ] Build secure endpoints or dashboard for tenant CRUD and token rotation
+- [~] Build secure endpoints or dashboard for tenant CRUD and token rotation (API skeleton completed; auth hardening pending)
 - [ ] Implement input validation and per-tenant structured logging/metrics
 - [ ] Seed sandbox tenants with distinct WhatsApp credentials for demos
+
+## Admin web experience
+- [ ] Ship React/Vite admin portal for tenant management (list, search, CRUD, token rotation)
+- [ ] Add secure auth & role management for the admin portal
+- [ ] Integrate audit logging and activity timeline in admin UI
+- [ ] Deliver deployment bundle and automated build pipeline for the admin app
 
 ## Testing & quality gates
 - [ ] Add unit tests for webhook verification, booking flow, and services

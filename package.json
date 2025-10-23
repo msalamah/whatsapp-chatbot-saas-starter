@@ -4,9 +4,12 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "dev": "node src/server.js"
+    "dev": "node src/server.js",
+    "admin:dev": "npm --prefix apps/admin run dev",
+    "admin:build": "npm --prefix apps/admin run build"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "googleapis": "^131.0.0",

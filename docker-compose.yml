@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: .
+    container_name: salon-backend
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    volumes:
+      - ./src/tenants/tenants.json:/app/src/tenants/tenants.json
+      - ./data:/app/data
+    restart: unless-stopped
+
+  admin:
+    build:
+      context: ./apps/admin
+    container_name: salon-admin
+    ports:
+      - "4173:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
