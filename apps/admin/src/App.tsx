@@ -2,8 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { AuthPanel } from "./components/AuthPanel";
 import { TenantTable } from "./components/TenantTable";
 import { TenantEditor } from "./components/TenantEditor";
-import { AdminCredentials, Tenant, TenantPayload } from "./types";
-import { createTenant, fetchTenants, patchTenant, removeTenant, rotateToken } from "./api";
+import { ActivityFeed } from "./components/ActivityFeed";
+import { AdminCredentials, AuditEvent, Tenant, TenantPayload } from "./types";
+import { createTenant, fetchActivity, fetchTenants, patchTenant, removeTenant, rotateToken } from "./api";
 
 interface Notification {
   type: "success" | "error";
@@ -17,7 +18,14 @@ function loadStoredCredentials(): AdminCredentials | null {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (parsed?.baseUrl && parsed?.token) return parsed;
+    if (parsed?.baseUrl && parsed?.token) {
+      return {
+        baseUrl: parsed.baseUrl,
+        token: parsed.token,
+        actor: parsed.actor || "owner",
+        role: parsed.role || "owner"
+      };
+    }
     return null;
   } catch {
     return null;
@@ -39,6 +47,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState<Notification | null>(null);
   const [showSensitive, setShowSensitive] = useState(false);
+  const [activity, setActivity] = useState<AuditEvent[]>([]);
+  const [activityLoading, setActivityLoading] = useState(false);
 
   const connected = Boolean(credentials);
 
@@ -51,6 +61,7 @@ export default function App() {
     if (!credentials) {
       setTenants([]);
       setSelectedTenant(null);
+      setActivity([]);
       return;
     }
     setLoading(true);
@@ -68,6 +79,12 @@ export default function App() {
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credentials, showSensitive]);
+
+  useEffect(() => {
+    if (!credentials) return;
+    refreshActivity(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [credentials]);
 
   const handleConnect = (creds: AdminCredentials) => {
     setCredentials(creds);
@@ -95,6 +112,18 @@ export default function App() {
       .finally(() => setLoading(false));
   };
 
+  const refreshActivity = (showToast = true) => {
+    if (!credentials) return;
+    setActivityLoading(true);
+    fetchActivity(credentials, 50)
+      .then((events) => {
+        setActivity(events);
+        if (showToast) notify({ type: "success", message: "Audit log updated" });
+      })
+      .catch((err) => notify({ type: "error", message: extractError(err) }))
+      .finally(() => setActivityLoading(false));
+  };
+
   const handleCreate = async (payload: TenantPayload) => {
     if (!credentials) return;
     setLoading(true);
@@ -102,6 +131,7 @@ export default function App() {
       await createTenant(credentials, payload);
       notify({ type: "success", message: `Created ${payload.displayName}` });
       refresh();
+      refreshActivity(false);
     } catch (err) {
       notify({ type: "error", message: extractError(err) });
     } finally {
@@ -116,6 +146,7 @@ export default function App() {
       await patchTenant(credentials, key, payload);
       notify({ type: "success", message: `Updated ${key}` });
       refresh();
+      refreshActivity(false);
     } catch (err) {
       notify({ type: "error", message: extractError(err) });
     } finally {
@@ -130,6 +161,7 @@ export default function App() {
       await rotateToken(credentials, key, token);
       notify({ type: "success", message: `Rotated token for ${key}` });
       refresh();
+      refreshActivity(false);
     } catch (err) {
       notify({ type: "error", message: extractError(err) });
     } finally {
@@ -146,6 +178,7 @@ export default function App() {
       notify({ type: "success", message: `Deleted ${tenant.key}` });
       setSelectedTenant((current) => (current?.key === tenant.key ? null : current));
       refresh();
+      refreshActivity(false);
     } catch (err) {
       notify({ type: "error", message: extractError(err) });
     } finally {
@@ -172,6 +205,8 @@ export default function App() {
         </div>
         <AuthPanel
           initialBaseUrl={credentials?.baseUrl || "http://localhost:3000"}
+          initialActor={credentials?.actor || "owner"}
+          initialRole={credentials?.role || "owner"}
           onConnect={handleConnect}
           onDisconnect={handleDisconnect}
           connected={connected}
@@ -197,6 +232,9 @@ export default function App() {
               <button type="button" onClick={refresh} disabled={!connected || loading}>
                 Refresh
               </button>
+              <button type="button" onClick={() => refreshActivity()} disabled={!connected || activityLoading}>
+                Activity
+              </button>
             </div>
           </div>
           <TenantTable
@@ -212,6 +250,13 @@ export default function App() {
           onUpdate={handleUpdate}
           onRotate={handleRotate}
         />
+        <section className="panel activity-panel">
+          <div className="status-bar">
+            <h2>Audit trail</h2>
+            {activityLoading && <span>Updating…</span>}
+          </div>
+          <ActivityFeed events={activity} />
+        </section>
       </main>
     </div>
   );
@@ -222,6 +267,11 @@ function extractError(err: unknown): string {
     try {
       const parsed = JSON.parse(err.message);
       if (typeof parsed?.error === "string") return parsed.error;
+      if (Array.isArray(parsed?.details) && parsed.details.length) {
+        const first = parsed.details[0];
+        if (typeof first === "string") return first;
+        if (first?.message) return first.message;
+      }
     } catch {
       //
     }

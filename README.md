@@ -23,6 +23,7 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so
 
 - Tenants, calendars, and service catalogs live in `src/tenants/tenants.json`. The admin portal and API mutate this file—back it up or sync to an external store if you need history.
 - Pending bookings are persisted in `data/pending-bookings.json` (auto-created). Mount this directory in Docker deployments to retain approval state.
+- Admin activity is written to `data/admin-activity.json`; the audit feed in the portal reads from here.
 - Extend these JSON documents if you need custom prompts or settings; the backend will surface new fields and the admin UI can be adapted quickly.
 
 ### Tenant management API (local development)
@@ -35,6 +36,7 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so
 - `POST /tenants/:key/rotate-token` — rotate the WhatsApp access token with `{ "token": "..." }`.
 - `DELETE /tenants/:key` — remove a tenant (default tenant is protected).
 - Payloads are validated; invalid requests return HTTP 422 with field-level details. Optionally send `X-Admin-Actor: <name>` to tag structured logs.
+- `GET /tenants/activity?limit=50` — retrieve recent admin actions for audit views. Supply `X-Admin-Actor`/`X-Admin-Role` on every request for attribution.
 
 > ⚠️ Treat bearer tokens like secrets. Rotate them regularly and serve the admin routes behind VPN or zero-trust access in production.
 
@@ -55,8 +57,10 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 - Frontend lives in `apps/admin` (Vite + React). Install deps with `npm install` inside that folder, then run `npm run dev` to launch on port 5173.
 - Or use root scripts: `npm run admin:dev` for development and `npm run admin:build` for production bundles.
 - Set `ADMIN_API_KEYS` in `.env` and pass the same token via the portal connect form.
+- Provide an admin display name and choose a role (owner/operator/viewer). These values are forwarded as `X-Admin-Actor` and `X-Admin-Role` headers for audit tracking.
 - Features: tenant roster with inspect/delete actions, create/update forms for services + calendar settings, token rotation, delete (non-default tenants). Toggle “Show raw tokens” to fetch sensitive fields.
 - The portal persists the last-used base URL and token in `localStorage`; use the Disconnect button to clear it.
+- Audit trail panel surfaces the latest tenant changes by reading from `GET /tenants/activity`.
 
 ### Availability & calendar
 

@@ -18,8 +18,8 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 
 ## Admin web experience
 - [~] Ship React/Vite admin portal for tenant management (initial release live; polish UX & analytics)
-- [ ] Add secure auth & role management for the admin portal
-- [ ] Integrate audit logging and activity timeline in admin UI
+- [~] Add secure auth & role management for the admin portal (actor/role headers in place, expand enforcement later)
+- [x] Integrate audit logging and activity timeline in admin UI
 - [ ] Deliver deployment bundle and automated build pipeline for the admin app
 
 ## Testing & quality gates

@@ -1,8 +1,10 @@
-import { AdminCredentials, Tenant, TenantPayload } from "./types";
+import { AdminCredentials, AuditEvent, Tenant, TenantPayload } from "./types";
 
 function buildHeaders(creds: AdminCredentials, isJson = true) {
   const headers: Record<string, string> = {
-    Authorization: `Bearer ${creds.token}`
+    Authorization: `Bearer ${creds.token}`,
+    "X-Admin-Actor": creds.actor || "admin",
+    "X-Admin-Role": creds.role || "admin"
   };
   if (isJson) headers["Content-Type"] = "application/json";
   return headers;
@@ -60,4 +62,14 @@ export async function removeTenant(creds: AdminCredentials, key: string) {
     headers: buildHeaders(creds, false)
   });
   await handleResponse(res);
+}
+
+export async function fetchActivity(creds: AdminCredentials, limit = 50): Promise<AuditEvent[]> {
+  const url = new URL("/tenants/activity", creds.baseUrl);
+  if (limit) url.searchParams.set("limit", String(limit));
+  const res = await fetch(url.toString(), {
+    headers: buildHeaders(creds, false)
+  });
+  const data = await handleResponse(res);
+  return data.events;
 }

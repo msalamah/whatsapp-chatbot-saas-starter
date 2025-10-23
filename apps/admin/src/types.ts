@@ -44,4 +44,15 @@ export interface TenantPayload {
 export interface AdminCredentials {
   baseUrl: string;
   token: string;
+  actor: string;
+  role: string;
+}
+
+export interface AuditEvent {
+  timestamp: string;
+  action: string;
+  actor: string;
+  role: string;
+  tenantKey?: string;
+  details?: Record<string, unknown>;
 }
