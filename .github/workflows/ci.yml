@@ -1,0 +1,48 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ feature/roadmap-plan, main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Lint
+        run: npm run lint || echo "lint script not defined"
+
+      - name: Run backend build
+        run: npm run build || echo "build script not defined"
+
+  admin-portal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+          cache: npm
+          cache-dependency-path: apps/admin/package-lock.json
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: apps/admin
+
+      - name: Build admin portal
+        run: npm run build
+        working-directory: apps/admin

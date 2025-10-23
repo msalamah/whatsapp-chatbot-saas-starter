@@ -104,3 +104,5 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 
 - `scripts/bootstrap.sh` – installs dependencies, scaffolds `.env`, and prints setup checklist.
 - `npm run dev` – runs the Express webhook server on port 3000.
+- `npm run admin:dev` / `npm run admin:build` – run or bundle the React admin portal.
+- GitHub Actions (`.github/workflows/ci.yml`) builds both backend and admin portal on pushes/PRs targeting `main` or `feature/roadmap-plan`.
