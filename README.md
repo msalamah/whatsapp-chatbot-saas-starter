@@ -34,8 +34,21 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so
 - `PATCH /tenants/:key` — update metadata, calendar settings, or service catalog. Omitting a field leaves it unchanged.
 - `POST /tenants/:key/rotate-token` — rotate the WhatsApp access token with `{ "token": "..." }`.
 - `DELETE /tenants/:key` — remove a tenant (default tenant is protected).
+- Payloads are validated; invalid requests return HTTP 422 with field-level details. Optionally send `X-Admin-Actor: <name>` to tag structured logs.
 
 > ⚠️ Treat bearer tokens like secrets. Rotate them regularly and serve the admin routes behind VPN or zero-trust access in production.
+
+### Sample tenants
+
+The project ships with three sandbox businesses you can switch between in the admin portal:
+
+| Key              | Business          | Timezone            | Highlights                          |
+|------------------|-------------------|---------------------|-------------------------------------|
+| `default`        | Demo Salon        | America/New_York    | Haircut, color, manicure            |
+| `beachside-spa`  | Beachside Spa     | America/Los_Angeles | Massage, facials, spa treatments    |
+| `urban-groomers` | Urban Groomers    | Europe/London       | Barber-focused services and colors  |
+
+Assign each one its own WhatsApp sandbox credentials before testing multi-tenant flows.
 
 ### Admin portal UI
 

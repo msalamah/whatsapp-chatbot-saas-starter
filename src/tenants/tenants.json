@@ -52,5 +52,107 @@
         { "day": 6, "start": "10:00", "end": "14:00" }
       ]
     }
+  },
+  "beachside-spa": {
+    "displayName": "Beachside Spa",
+    "wabaToken": "",
+    "phoneNumberId": "",
+    "graphVersion": "v20.0",
+    "services": [
+      {
+        "id": "relax-massage",
+        "name": "Relaxation Massage",
+        "minMinutes": 60,
+        "maxMinutes": 90,
+        "price": 95,
+        "currency": "USD",
+        "description": "Full-body massage with aromatherapy.",
+        "keywords": ["massage", "relax", "spa"]
+      },
+      {
+        "id": "deep-tissue",
+        "name": "Deep Tissue Massage",
+        "minMinutes": 45,
+        "maxMinutes": 75,
+        "price": 120,
+        "currency": "USD",
+        "description": "Targeted muscle relief for athletes.",
+        "keywords": ["deep tissue", "sports", "therapy"]
+      },
+      {
+        "id": "facial-glow",
+        "name": "Radiance Facial",
+        "minMinutes": 50,
+        "maxMinutes": 60,
+        "price": 85,
+        "currency": "USD",
+        "description": "Custom facial treatment with organic products.",
+        "keywords": ["facial", "skin", "glow"]
+      }
+    ],
+    "calendar": {
+      "enabled": false,
+      "timezone": "America/Los_Angeles",
+      "calendarId": "spa-calendar",
+      "slotDurationMinutes": 60,
+      "workingHours": [
+        { "day": 2, "start": "10:00", "end": "18:00" },
+        { "day": 3, "start": "10:00", "end": "18:00" },
+        { "day": 4, "start": "10:00", "end": "18:00" },
+        { "day": 5, "start": "10:00", "end": "18:00" },
+        { "day": 6, "start": "09:00", "end": "16:00" }
+      ]
+    }
+  },
+  "urban-groomers": {
+    "displayName": "Urban Groomers",
+    "wabaToken": "",
+    "phoneNumberId": "",
+    "graphVersion": "v20.0",
+    "services": [
+      {
+        "id": "beard-trim",
+        "name": "Beard Trim & Shape",
+        "minMinutes": 20,
+        "maxMinutes": 30,
+        "price": 25,
+        "currency": "USD",
+        "description": "Precision trim with hot towel finish.",
+        "keywords": ["beard", "trim", "barber"]
+      },
+      {
+        "id": "cut-style",
+        "name": "Cut & Style",
+        "minMinutes": 30,
+        "maxMinutes": 45,
+        "price": 40,
+        "currency": "USD",
+        "description": "Modern cuts tailored to you.",
+        "keywords": ["cut", "style", "barber"]
+      },
+      {
+        "id": "color-shot",
+        "name": "Express Color",
+        "minMinutes": 35,
+        "maxMinutes": 50,
+        "price": 65,
+        "currency": "USD",
+        "description": "Quick color service for touch-ups.",
+        "keywords": ["color", "touch up"]
+      }
+    ],
+    "calendar": {
+      "enabled": false,
+      "timezone": "Europe/London",
+      "calendarId": "urban-barber",
+      "slotDurationMinutes": 30,
+      "workingHours": [
+        { "day": 1, "start": "10:00", "end": "18:30" },
+        { "day": 2, "start": "10:00", "end": "18:30" },
+        { "day": 3, "start": "10:00", "end": "18:30" },
+        { "day": 4, "start": "10:00", "end": "20:00" },
+        { "day": 5, "start": "09:00", "end": "19:00" }
+      ]
+    }
   }
 }
