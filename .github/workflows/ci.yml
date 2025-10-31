@@ -46,3 +46,9 @@ jobs:
       - name: Build admin portal
         run: npm run build
         working-directory: apps/admin
+
+      - name: Upload admin bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-portal-dist
+          path: apps/admin/dist

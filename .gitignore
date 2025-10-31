@@ -4,3 +4,4 @@ npm-debug.log*
 .DS_Store
 src/config/*token*.json
 apps/admin/dist
+apps/admin/dist.tar.gz

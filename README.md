@@ -61,6 +61,7 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 - Features: tenant roster with inspect/delete actions, create/update forms for services + calendar settings, token rotation, delete (non-default tenants). Toggle “Show raw tokens” to fetch sensitive fields.
 - The portal persists the last-used base URL and token in `localStorage`; use the Disconnect button to clear it.
 - Audit trail panel surfaces the latest tenant changes by reading from `GET /tenants/activity`.
+- Run `npm run admin:bundle` to emit `apps/admin/dist.tar.gz` for static hosting; CI uploads the same bundle as a build artifact.
 
 ### Availability & calendar
 
@@ -105,4 +106,5 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 - `scripts/bootstrap.sh` – installs dependencies, scaffolds `.env`, and prints setup checklist.
 - `npm run dev` – runs the Express webhook server on port 3000.
 - `npm run admin:dev` / `npm run admin:build` – run or bundle the React admin portal.
+- `npm run admin:bundle` – build and archive the admin portal into `apps/admin/dist.tar.gz`.
 - GitHub Actions (`.github/workflows/ci.yml`) builds both backend and admin portal on pushes/PRs targeting `main` or `feature/roadmap-plan`.
