@@ -24,7 +24,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 
 ## Testing & quality gates
 - [x] Add unit tests for webhook verification, booking flow, and services
-- [ ] Create integration/e2e test harness against WhatsApp sandbox mocks
+- [x] Create integration/e2e test harness against WhatsApp sandbox mocks
 - [x] Configure CI (GitHub Actions) to run lint/test on each push
 
 ## Demo & packaging
