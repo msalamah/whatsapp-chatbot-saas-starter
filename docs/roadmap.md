@@ -23,7 +23,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [x] Deliver deployment bundle and automated build pipeline for the admin app
 
 ## Testing & quality gates
-- [ ] Add unit tests for webhook verification, booking flow, and services
+- [x] Add unit tests for webhook verification, booking flow, and services
 - [ ] Create integration/e2e test harness against WhatsApp sandbox mocks
 - [x] Configure CI (GitHub Actions) to run lint/test on each push
 
