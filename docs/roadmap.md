@@ -32,6 +32,12 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [ ] Ship owner-facing approval UI or alternate approval workflow
 - [ ] Expand README with quickstart, troubleshooting, and video walkthrough
 
+## Phase 2 (future initiatives)
+- [ ] CRM layer for customer/contact history and marketing insights
+- [ ] Owner/operator dashboard (web) to monitor customers and bookings in real time
+- [ ] Product catalog & commerce workflows for businesses selling items
+- [ ] Self-serve onboarding + billing so customers can purchase the platform online
+
 ## Security & production readiness
 - [ ] Establish secret management strategy across environments
 - [x] Provide Dockerfile/compose (demo) and draft production deployment plan
