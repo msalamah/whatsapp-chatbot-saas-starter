@@ -5,3 +5,4 @@ npm-debug.log*
 src/config/*token*.json
 apps/admin/dist
 apps/admin/dist.tar.gz
+data/postgres

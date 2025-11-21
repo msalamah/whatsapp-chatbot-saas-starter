@@ -11,6 +11,7 @@ import { logger } from "../utils/logger.js";
 import { savePendingBooking, getPendingBooking, deletePendingBooking } from "./pendingBookingStore.js";
 import { getAvailableSlots } from "./availabilityService.js";
 import { evaluateUserMessage } from "./conversationService.js";
+import { upsertCustomer } from "./customerStore.js";
 
 const SLOT_PREFIX = "slot::";
 const LEGACY_SLOT_PREFIX = "slot_";
@@ -20,7 +21,11 @@ export async function handleIncomingChange(change) {
   const value = change.value || {};
   const metadata = value.metadata || {};
   const phoneNumberId = metadata.phone_number_id;
-  const tenant = getTenantByPhoneNumberId(phoneNumberId);
+  const tenant = await getTenantByPhoneNumberId(phoneNumberId);
+  if (!tenant) {
+    logger.warn("Tenant not found for phoneNumberId", "booking", { phoneNumberId });
+    return;
+  }
 
   const messages = value.messages || [];
   const statuses = value.statuses || [];
@@ -34,9 +39,11 @@ export async function handleIncomingChange(change) {
     if (type === "text") rawText = msg.text?.body?.trim();
     if (type === "interactive" && msg.interactive?.type === "button_reply") { rawText = msg.interactive.button_reply.id; }
     if (type === "interactive" && msg.interactive?.type === "list_reply") { rawText = msg.interactive.list_reply.id; }
-    const pendingData = getPendingBooking(from);
+    const pendingData = await getPendingBooking(from);
 
     if (!rawText) { await sendText(tenant.key, from, "Got it ✅"); continue; }
+
+    await upsertCustomer({ id: from, tenantKey: tenant.key });
 
     if (rawText.startsWith(SLOT_PREFIX) || rawText.startsWith(LEGACY_SLOT_PREFIX)) {
       await handleSlotSelection({ tenant, from, rawText, pendingData });
@@ -45,19 +52,19 @@ export async function handleIncomingChange(change) {
 
     if (rawText === "approve_me") {
       if (!pendingData) { await sendText(tenant.key, from, "No pending booking."); continue; }
-      const targetTenant = getTenantByKey(pendingData.tenantKey) || tenant;
+      const targetTenant = await getTenantByKey(pendingData.tenantKey) || tenant;
       await confirmEvent(targetTenant, pendingData.eventId);
       await sendText(targetTenant.key, from, `Approved ✅ ${formatConfirmedMessage(pendingData)}`);
-      deletePendingBooking(from);
+      await deletePendingBooking(from);
       continue;
     }
 
     if (rawText === "reject_me") {
       if (!pendingData) { await sendText(tenant.key, from, "No pending booking."); continue; }
-      const targetTenant = getTenantByKey(pendingData.tenantKey) || tenant;
+      const targetTenant = await getTenantByKey(pendingData.tenantKey) || tenant;
       await cancelEvent(targetTenant, pendingData.eventId);
       await sendText(targetTenant.key, from, `Cancelled ❌ ${formatCancelledMessage(pendingData)}`);
-      deletePendingBooking(from);
+      await deletePendingBooking(from);
       continue;
     }
 
@@ -76,6 +83,9 @@ export async function handleIncomingChange(change) {
     }
 
     const evaluation = await evaluateUserMessage({ tenant, text: rawText, pendingBooking: pendingData });
+    if (evaluation.language) {
+      await upsertCustomer({ id: from, tenantKey: tenant.key, language: evaluation.language });
+    }
     const service = resolveService(
       tenant,
       evaluation.serviceId || evaluation.serviceName || serviceCommandId,
@@ -159,7 +169,7 @@ async function handleSlotSelection({ tenant, from, rawText, pendingData }) {
   );
   const eventId = temp?.id || `dev-${Math.random().toString(36).slice(2)}`;
 
-  savePendingBooking(from, {
+  await savePendingBooking(from, {
     tenantKey: tenant.key,
     eventId,
     startISO,

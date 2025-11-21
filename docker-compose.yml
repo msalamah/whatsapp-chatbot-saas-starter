@@ -11,9 +11,12 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - DATABASE_URL=postgres://chatbot:chatbot@db:5432/chatbot
     volumes:
       - ./src/tenants/tenants.json:/app/src/tenants/tenants.json
       - ./data:/app/data
+    depends_on:
+      - db
     restart: unless-stopped
 
   admin:
@@ -24,4 +27,17 @@ services:
       - "4173:80"
     depends_on:
       - backend
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    container_name: salon-db
+    environment:
+      - POSTGRES_USER=chatbot
+      - POSTGRES_PASSWORD=chatbot
+      - POSTGRES_DB=chatbot
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
     restart: unless-stopped

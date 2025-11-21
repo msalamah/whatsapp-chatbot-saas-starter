@@ -47,22 +47,22 @@ function recordActivity(action, { actor, role, tenantKey, details }) {
   appendActivity(payload);
 }
 
-router.get("/", (req, res) => {
+router.get("/", async (req, res) => {
   const includeSensitive = parseSensitiveFlag(req);
-  const tenants = listTenants({ includeSensitive });
+  const tenants = await listTenants({ includeSensitive });
   res.json({ tenants });
 });
 
-router.get("/activity", (req, res) => {
+router.get("/activity", async (req, res) => {
   const limit = Number.parseInt(String(req.query.limit ?? ""), 10);
-  const events = listActivities({ limit: Number.isNaN(limit) ? undefined : limit });
+  const events = await listActivities({ limit: Number.isNaN(limit) ? undefined : limit });
   res.json({ events });
 });
 
-router.get("/:key", (req, res) => {
+router.get("/:key", async (req, res) => {
   try {
     const includeSensitive = parseSensitiveFlag(req);
-    const tenant = getTenantSummary(req.params.key, { includeSensitive });
+    const tenant = await getTenantSummary(req.params.key, { includeSensitive });
     if (!tenant) {
       return res.status(404).json({ error: "Tenant not found" });
     }
@@ -97,7 +97,7 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.patch("/:key", (req, res) => {
+router.patch("/:key", async (req, res) => {
   const actor = resolveActor(req);
   const role = resolveRole(req);
   const { value, errors } = validateTenantUpdate(req.body || {});
@@ -123,7 +123,7 @@ router.patch("/:key", (req, res) => {
   }
 });
 
-router.post("/:key/rotate-token", (req, res) => {
+router.post("/:key/rotate-token", async (req, res) => {
   const actor = resolveActor(req);
   const role = resolveRole(req);
   const { value, errors } = validateTokenRotation(req.body || {});
@@ -148,7 +148,7 @@ router.post("/:key/rotate-token", (req, res) => {
   }
 });
 
-router.delete("/:key", (req, res) => {
+router.delete("/:key", async (req, res) => {
   const actor = resolveActor(req);
   const role = resolveRole(req);
   try {

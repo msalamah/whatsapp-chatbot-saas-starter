@@ -15,6 +15,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [x] Build secure endpoints or dashboard for tenant CRUD and token rotation (API + bearer auth delivered; expand validation next)
 - [x] Implement input validation and per-tenant structured logging/metrics
 - [x] Seed sandbox tenants with distinct WhatsApp credentials for demos
+- [x] Introduce managed database for tenants, customers, and booking history (replace local JSON stores)
 
 ## Admin web experience
 - [~] Ship React/Vite admin portal for tenant management (initial release live; polish UX & analytics)

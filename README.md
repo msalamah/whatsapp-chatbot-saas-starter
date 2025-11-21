@@ -9,7 +9,7 @@ Multi-tenant WhatsApp Business webhook starter with calendar integration for sal
 # (fills node_modules, creates .env if missing, prints next steps)
 ```
 
-1. Edit `.env` with your sandbox `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, optional `APP_SECRET`, and (for AI responses) `OPENAI_API_KEY`.
+1. Edit `.env` with your sandbox `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, optional `APP_SECRET`, `DATABASE_URL`, and (for AI responses) `OPENAI_API_KEY`. Run `docker compose up db` for a local Postgres instance if you don’t already have one.
 2. Start the webhook server: `npm run dev`
 3. Expose port 3000: `npx ngrok http 3000`
 4. In Meta App → WhatsApp → Configuration  
@@ -17,14 +17,13 @@ Multi-tenant WhatsApp Business webhook starter with calendar integration for sal
    • Verify Token: same value as `WHATSAPP_VERIFY_TOKEN`  
    • Subscribe to `messages`, `message_status`, `message_template_status_update`
 
-Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so checked-in defaults stay safe. Runtime state (pending approvals, etc.) is written to `data/pending-bookings.json` and survives restarts.
+Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so checked-in defaults stay safe. Postgres stores tenants/services/customers/pending bookings, while `data/admin-activity.json` tracks admin actions.
 
 ### Data storage model
 
-- Tenants, calendars, and service catalogs live in `src/tenants/tenants.json`. The admin portal and API mutate this file—back it up or sync to an external store if you need history.
-- Pending bookings are persisted in `data/pending-bookings.json` (auto-created). Mount this directory in Docker deployments to retain approval state.
+- Postgres (configure with `DATABASE_URL`) stores tenants, services, customers, and pending bookings. On first boot, `src/tenants/tenants.json` seeds the database with sample tenants; after that everything is persisted in SQL.
 - Admin activity is written to `data/admin-activity.json`; the audit feed in the portal reads from here.
-- Extend these JSON documents if you need custom prompts or settings; the backend will surface new fields and the admin UI can be adapted quickly.
+- Tests run against an in-memory Postgres instance by setting `DATABASE_URL=memory` (handled automatically via `npm test`).
 
 ### Tenant management API (local development)
 
@@ -62,22 +61,24 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 - The portal persists the last-used base URL and token in `localStorage`; use the Disconnect button to clear it.
 - Audit trail panel surfaces the latest tenant changes by reading from `GET /tenants/activity`.
 - Run `npm run admin:bundle` to emit `apps/admin/dist.tar.gz` for static hosting; CI uploads the same bundle as a build artifact.
+- `npm test` – run the vitest unit suite (webhook verification, tenant validation, availability logic). Integration tests spin up an in-memory Postgres instance automatically.
 
 ### Availability & calendar
 
-- Configure `calendar.timezone`, `slotDurationMinutes`, and `workingHours` per tenant in `src/tenants/tenants.json`.
+- Configure `calendar.timezone`, `slotDurationMinutes`, and `workingHours` per tenant through the admin API/portal; `src/tenants/tenants.json` is only used for seeding the initial database.
 - When `calendar.enabled` is `true` and Google credentials are supplied, the bot calls the Calendar API `freebusy` endpoint to surface the next open slots.
 - With calendar disabled, slots are generated from the working-hours schedule so you can demo the flow without Google OAuth.
 - Slot picks are stored on disk and acknowledgements reuse the tenant timezone so approvals persist across restarts.
 
 ### Docker deployment
 
-1. Ensure `.env` contains your runtime configuration (`ADMIN_API_KEYS`, `ADMIN_ALLOW_ORIGINS`, WhatsApp/OpenAI secrets).
-2. Build and start both services: `docker compose up --build`.
+1. Ensure `.env` contains your runtime configuration (`DATABASE_URL`, `ADMIN_API_KEYS`, `ADMIN_ALLOW_ORIGINS`, WhatsApp/OpenAI secrets).
+2. Build and start the stack (backend, admin portal, Postgres): `docker compose up --build`.
    - Backend API: http://localhost:3000
    - Admin portal: http://localhost:4173
+   - Postgres: exposed on 5432 (default creds `chatbot/chatbot`, DB `chatbot`)
 3. In the admin UI connect form, use base URL `http://localhost:3000` plus a token from `ADMIN_API_KEYS`.
-4. Tenant definitions (`src/tenants/tenants.json`) and pending bookings (`data/`) are mounted into the containers so updates persist between restarts. Swap these bind mounts for managed volumes or a database before production rollout.
+4. Postgres data is stored in `data/postgres` (bind-mount). Admin activity logs live in `data/admin-activity.json`.
 
 > Add HTTPS termination (e.g., Traefik, nginx) and tighten firewall rules when exposing outside your local machine.
 
