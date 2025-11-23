@@ -29,7 +29,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [x] Configure CI (GitHub Actions) to run lint/test on each push
 
 ## Demo & packaging
-- [ ] Prepare scripted demo scenarios with sample conversations/assets
+- [x] Prepare scripted demo scenarios with sample conversations/assets
 - [ ] Ship owner-facing approval UI or alternate approval workflow
 - [ ] Expand README with quickstart, troubleshooting, and video walkthrough
 

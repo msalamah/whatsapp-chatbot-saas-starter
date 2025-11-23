@@ -82,6 +82,11 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 
 > Add HTTPS termination (e.g., Traefik, nginx) and tighten firewall rules when exposing outside your local machine.
 
+### Demo & selling kit
+
+- Run through the scripts in `docs/demo-scenarios.md` when showing the product. They cover new bookings, status updates, and owner approvals.
+- Capture screenshots/GIFs of the WhatsApp thread plus the admin portal audit log so prospects see both sides of the flow.
+
 ### Service catalog
 
 - Declare each salon service under `services` in `src/tenants/tenants.json` (id, name, min/max duration minutes, price, optional keywords/description).
