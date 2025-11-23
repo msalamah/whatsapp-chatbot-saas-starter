@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Owner Portal</title>
+    <style>
+      body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+      .card { background: rgba(15, 23, 42, 0.85); padding: 2rem; border-radius: 12px; width: min(480px, 90%); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); }
+      input { width: 100%; padding: 0.6rem; margin-bottom: 0.75rem; border-radius: 8px; border: 1px solid rgba(226, 232, 240, 0.2); background: rgba(15, 23, 42, 0.6); color: inherit; }
+      button { width: 100%; padding: 0.7rem; border: none; border-radius: 8px; background: linear-gradient(135deg, #38bdf8, #0ea5e9); color: #0f172a; font-weight: bold; cursor: pointer; }
+      ul { list-style: none; padding: 0; }
+      li { background: rgba(15, 23, 42, 0.6); padding: 0.75rem; border-radius: 8px; margin-bottom: 0.5rem; display: flex; justify-content: space-between; align-items: center; }
+      .actions button { width: auto; margin-left: 0.5rem; }
+      .hidden { display: none; }
+      .muted { color: #94a3b8; font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div id="login-view">
+        <h2>Owner Login</h2>
+        <input id="tenantKey" placeholder="Tenant key" />
+        <input id="ownerToken" placeholder="Owner token" type="password" />
+        <button id="loginBtn">Connect</button>
+        <p class="muted">Ask your platform admin for your tenant key and portal token.</p>
+      </div>
+      <div id="pending-view" class="hidden">
+        <h2>Pending bookings</h2>
+        <p id="tenantLabel" class="muted"></p>
+        <button id="refreshBtn">Refresh</button>
+        <ul id="pendingList"></ul>
+        <button id="logoutBtn">Logout</button>
+      </div>
+    </div>
+    <script>
+      const loginView = document.getElementById("login-view");
+      const pendingView = document.getElementById("pending-view");
+      const pendingList = document.getElementById("pendingList");
+      const tenantLabel = document.getElementById("tenantLabel");
+      const tokenKey = "ownerPortalToken";
+      const tenantKeyKey = "ownerPortalTenant";
+
+      async function api(path, options = {}) {
+        const token = localStorage.getItem(tokenKey);
+        const res = await fetch(path, {
+          ...options,
+          headers: {
+            "Content-Type": "application/json",
+            ...(options.headers || {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          }
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        return res.json();
+      }
+
+      async function login() {
+        const tenantKey = document.getElementById("tenantKey").value.trim();
+        const token = document.getElementById("ownerToken").value.trim();
+        if (!tenantKey || !token) return;
+        try {
+          const res = await api("/owner/login", { method: "POST", body: JSON.stringify({ tenantKey, token }) });
+          localStorage.setItem(tokenKey, res.token);
+          localStorage.setItem(tenantKeyKey, tenantKey);
+          tenantLabel.textContent = res.tenant?.name || tenantKey;
+          loginView.classList.add("hidden");
+          pendingView.classList.remove("hidden");
+          loadPending();
+        } catch (err) {
+          alert("Login failed");
+        }
+      }
+
+      async function loadPending() {
+        try {
+          const data = await api("/owner/pending");
+          pendingList.innerHTML = "";
+          if (!data.pending || !data.pending.length) {
+            pendingList.innerHTML = '<li><span class="muted">No pending bookings</span></li>';
+            return;
+          }
+          data.pending.forEach((item) => {
+            const li = document.createElement("li");
+            const text = document.createElement("div");
+            text.innerHTML = `<strong>${item.serviceName || "Service"}</strong><div class="muted">${item.slotLabel || "Pending slot"}</div>`;
+            const actions = document.createElement("div");
+            actions.className = "actions";
+            const approveBtn = document.createElement("button");
+            approveBtn.textContent = "Approve";
+            approveBtn.onclick = () => updateBooking(item.customerId, "approve");
+            const rejectBtn = document.createElement("button");
+            rejectBtn.textContent = "Reject";
+            rejectBtn.onclick = () => updateBooking(item.customerId, "reject");
+            actions.appendChild(approveBtn);
+            actions.appendChild(rejectBtn);
+            li.appendChild(text);
+            li.appendChild(actions);
+            pendingList.appendChild(li);
+          });
+        } catch (err) {
+          alert("Failed to load pending bookings");
+        }
+      }
+
+      async function updateBooking(customerId, action) {
+        try {
+          await api(`/owner/pending/${customerId}/${action}`, { method: "POST" });
+          loadPending();
+        } catch (err) {
+          alert("Failed to update booking");
+        }
+      }
+
+      document.getElementById("loginBtn").onclick = login;
+      document.getElementById("refreshBtn").onclick = loadPending;
+      document.getElementById("logoutBtn").onclick = () => {
+        localStorage.removeItem(tokenKey);
+        localStorage.removeItem(tenantKeyKey);
+        pendingList.innerHTML = "";
+        pendingView.classList.add("hidden");
+        loginView.classList.remove("hidden");
+      };
+
+      const existingToken = localStorage.getItem(tokenKey);
+      if (existingToken) {
+        loginView.classList.add("hidden");
+        pendingView.classList.remove("hidden");
+        loadPending();
+      }
+    </script>
+  </body>
+</html>

@@ -2,6 +2,7 @@ import { Pool } from "pg";
 import { newDb } from "pg-mem";
 import fs from "fs";
 import path from "path";
+import { v4 as uuid } from "uuid";
 
 const DATABASE_URL = process.env.DATABASE_URL || "postgres://chatbot:chatbot@localhost:5432/chatbot";
 
@@ -28,10 +29,12 @@ export async function initializeDatabase() {
       phone_number_id text,
       graph_version text DEFAULT 'v20.0',
       calendar jsonb NOT NULL DEFAULT '{}'::jsonb,
+      owner_portal_token text,
       created_at timestamptz DEFAULT now(),
       updated_at timestamptz DEFAULT now()
     );
   `);
+  await query("ALTER TABLE tenants ADD COLUMN IF NOT EXISTS owner_portal_token text");
 
   await query(`
     CREATE TABLE IF NOT EXISTS services (
@@ -95,8 +98,8 @@ async function seedDefaultTenants() {
   for (const [key, tenant] of Object.entries(tenants)) {
     const calendar = tenant.calendar || {};
     await query(
-      `INSERT INTO tenants (key, display_name, waba_token, phone_number_id, graph_version, calendar)
-       VALUES ($1,$2,$3,$4,$5,$6)
+      `INSERT INTO tenants (key, display_name, waba_token, phone_number_id, graph_version, calendar, owner_portal_token)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
        ON CONFLICT (key) DO NOTHING`,
       [
         key,
@@ -104,7 +107,8 @@ async function seedDefaultTenants() {
         tenant.wabaToken || "",
         tenant.phoneNumberId || "",
         tenant.graphVersion || "v20.0",
-        JSON.stringify(calendar)
+        JSON.stringify(calendar),
+        tenant.ownerToken || uuid()
       ]
     );
     const services = tenant.services || [];

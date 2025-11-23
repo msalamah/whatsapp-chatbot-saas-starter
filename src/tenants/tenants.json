@@ -1,6 +1,7 @@
 {
   "default": {
     "displayName": "Demo Salon",
+    "ownerToken": "demo-owner-token",
     "wabaToken": "",
     "phoneNumberId": "",
     "graphVersion": "v20.0",
@@ -55,6 +56,7 @@
   },
   "beachside-spa": {
     "displayName": "Beachside Spa",
+    "ownerToken": "beach-owner-token",
     "wabaToken": "",
     "phoneNumberId": "",
     "graphVersion": "v20.0",
@@ -106,6 +108,7 @@
   },
   "urban-groomers": {
     "displayName": "Urban Groomers",
+    "ownerToken": "urban-owner-token",
     "wabaToken": "",
     "phoneNumberId": "",
     "graphVersion": "v20.0",

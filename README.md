@@ -38,6 +38,7 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so
 - `GET /tenants/activity?limit=50` — retrieve recent admin actions for audit views. Supply `X-Admin-Actor`/`X-Admin-Role` on every request for attribution.
 - `GET /tenants/:key/pending-bookings` — list pending WhatsApp requests for that tenant.
 - `POST /tenants/:key/pending-bookings/:customerId/approve|reject` — approve or reject a booking (sends confirmation back to the customer, updates calendar if enabled).
+- `POST /tenants/:key/owner-token` — rotate the owner portal token you share with that tenant.
 
 > ⚠️ Treat bearer tokens like secrets. Rotate them regularly and serve the admin routes behind VPN or zero-trust access in production.
 
@@ -65,6 +66,12 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 - Pending approvals panel lets owners review and approve/reject WhatsApp bookings without sending manual commands.
 - Run `npm run admin:bundle` to emit `apps/admin/dist.tar.gz` for static hosting; CI uploads the same bundle as a build artifact.
 - `npm test` – run the vitest unit suite (webhook verification, tenant validation, availability logic). Integration tests spin up an in-memory Postgres instance automatically.
+
+### Owner portal (tenants)
+
+- Every tenant has an owner portal token (`ownerTokenPreview` is shown in `/tenants` when `includeSensitive=true`). Rotate tokens with `POST /tenants/:key/owner-token`.
+- Owners visit `http://<your-host>/owner/portal`, enter their tenant key + owner token, and manage pending bookings.
+- The portal uses `/owner/login` to issue a JWT and `/owner/pending` plus `/owner/pending/:customerId/approve|reject` to process bookings; responses sync with WhatsApp and Google Calendar automatically.
 
 ### Availability & calendar
 

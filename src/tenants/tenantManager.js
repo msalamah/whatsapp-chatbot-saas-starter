@@ -26,6 +26,10 @@ function ensureCalendarDefaults(calendar = {}) {
   };
 }
 
+function generateOwnerToken() {
+  return uuidv4().replace(/-/g, "");
+}
+
 function normalizeServices(services) {
   if (!Array.isArray(services) || !services.length) {
     return DEFAULT_SERVICES.map((svc) => ({ ...svc }));
@@ -64,8 +68,16 @@ async function attachServices(tenantRows) {
     phoneNumberId: row.phone_number_id,
     graphVersion: row.graph_version,
     calendar: ensureCalendarDefaults(row.calendar || {}),
-    services: grouped.get(row.key) || []
+    services: grouped.get(row.key) || [],
+    ownerToken: row.owner_portal_token
   }));
+}
+
+async function ensureOwnerToken(tenant) {
+  if (tenant.ownerToken) return tenant;
+  const token = generateOwnerToken();
+  await query("UPDATE tenants SET owner_portal_token = $1 WHERE key = $2", [token, tenant.key]);
+  return { ...tenant, ownerToken: token };
 }
 
 function formatServiceRow(row) {
@@ -83,30 +95,32 @@ function formatServiceRow(row) {
 
 export async function listTenants({ includeSensitive = false } = {}) {
   const res = await query("SELECT * FROM tenants ORDER BY key");
-  const tenants = await attachServices(res.rows);
+  let tenants = await attachServices(res.rows);
+  tenants = await Promise.all(tenants.map((tenant) => ensureOwnerToken(tenant)));
   return tenants.map((tenant) => maskTenant(tenant, includeSensitive));
 }
 
 export async function getTenantSummary(key, { includeSensitive = false } = {}) {
   const res = await query("SELECT * FROM tenants WHERE key = $1", [key]);
   if (!res.rowCount) return null;
-  const tenant = (await attachServices(res.rows))[0];
+  let tenant = (await attachServices(res.rows))[0];
+  tenant = await ensureOwnerToken(tenant);
   return maskTenant(tenant, includeSensitive);
 }
 
 export async function getTenantByKey(key) {
   const res = await query("SELECT * FROM tenants WHERE key = $1", [key]);
   if (!res.rowCount) return null;
-  const tenant = (await attachServices(res.rows))[0];
-  return tenant;
+  let tenant = (await attachServices(res.rows))[0];
+  return await ensureOwnerToken(tenant);
 }
 
 export async function getTenantByPhoneNumberId(phoneNumberId) {
   if (!phoneNumberId) return await getTenantByKey("default");
   const res = await query("SELECT * FROM tenants WHERE phone_number_id = $1", [phoneNumberId]);
   if (!res.rowCount) return await getTenantByKey("default");
-  const tenant = (await attachServices(res.rows))[0];
-  return tenant;
+  let tenant = (await attachServices(res.rows))[0];
+  return await ensureOwnerToken(tenant);
 }
 
 export async function registerTenant({ displayName, wabaToken, phoneNumberId, graphVersion = "v20.0", calendar = {}, services = [] }) {
@@ -164,6 +178,13 @@ export async function rotateTenantToken(key, newToken) {
   return await getTenantByKey(key);
 }
 
+export async function rotateOwnerPortalToken(key) {
+  if (!key) throw new Error("tenant key is required");
+  const newToken = generateOwnerToken();
+  await query("UPDATE tenants SET owner_portal_token = $1, updated_at = now() WHERE key = $2", [newToken, key]);
+  return newToken;
+}
+
 export async function deleteTenant(key) {
   if (!key) throw new Error("tenant key is required");
   await query("DELETE FROM tenants WHERE key = $1", [key]);
@@ -206,7 +227,9 @@ function maskTenant(tenant, includeSensitive) {
   return {
     ...tenant,
     wabaToken: includeSensitive ? tenant.wabaToken : undefined,
-    wabaTokenPreview: tenant.wabaToken ? maskToken(tenant.wabaToken) : null
+    wabaTokenPreview: tenant.wabaToken ? maskToken(tenant.wabaToken) : null,
+    ownerToken: includeSensitive ? tenant.ownerToken : undefined,
+    ownerTokenPreview: tenant.ownerToken ? maskToken(tenant.ownerToken) : null
   };
 }
 

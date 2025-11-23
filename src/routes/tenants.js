@@ -5,6 +5,7 @@ import {
   registerTenant,
   updateTenant,
   rotateTenantToken,
+  rotateOwnerPortalToken,
   deleteTenant
 } from "../tenants/tenantManager.js";
 import { validateTenantCreate, validateTenantUpdate, validateTokenRotation } from "../tenants/tenantValidation.js";
@@ -185,6 +186,26 @@ router.post("/:key/rotate-token", async (req, res) => {
     return res.json({ tenant: await getTenantSummary(req.params.key) });
   } catch (err) {
     logger.warn("Failed to rotate tenant token", "tenant-admin", { actor, role, tenantKey: req.params.key, error: err.message });
+    if (/not found/i.test(err.message)) {
+      return res.status(404).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.post("/:key/owner-token", async (req, res) => {
+  const actor = resolveActor(req);
+  const role = resolveRole(req);
+  try {
+    const token = await rotateOwnerPortalToken(req.params.key);
+    recordActivity("tenant.owner_token_rotated", {
+      actor,
+      role,
+      tenantKey: req.params.key
+    });
+    return res.json({ ownerToken: token });
+  } catch (err) {
+    logger.warn("Failed to rotate owner token", "tenant-admin", { actor, role, tenantKey: req.params.key, error: err.message });
     if (/not found/i.test(err.message)) {
       return res.status(404).json({ error: err.message });
     }
