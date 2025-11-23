@@ -1,4 +1,4 @@
-import { AdminCredentials, AuditEvent, Tenant, TenantPayload } from "./types";
+import { AdminCredentials, AuditEvent, PendingBooking, Tenant, TenantPayload } from "./types";
 
 function buildHeaders(creds: AdminCredentials, isJson = true) {
   const headers: Record<string, string> = {
@@ -72,4 +72,28 @@ export async function fetchActivity(creds: AdminCredentials, limit = 50): Promis
   });
   const data = await handleResponse(res);
   return data.events;
+}
+
+export async function fetchPendingBookings(creds: AdminCredentials, tenantKey: string): Promise<PendingBooking[]> {
+  const res = await fetch(new URL(`/tenants/${tenantKey}/pending-bookings`, creds.baseUrl).toString(), {
+    headers: buildHeaders(creds, false)
+  });
+  const data = await handleResponse(res);
+  return data.pending || [];
+}
+
+export async function approvePending(creds: AdminCredentials, tenantKey: string, customerId: string) {
+  const res = await fetch(new URL(`/tenants/${tenantKey}/pending-bookings/${customerId}/approve`, creds.baseUrl).toString(), {
+    method: "POST",
+    headers: buildHeaders(creds)
+  });
+  return handleResponse(res);
+}
+
+export async function rejectPending(creds: AdminCredentials, tenantKey: string, customerId: string) {
+  const res = await fetch(new URL(`/tenants/${tenantKey}/pending-bookings/${customerId}/reject`, creds.baseUrl).toString(), {
+    method: "POST",
+    headers: buildHeaders(creds)
+  });
+  return handleResponse(res);
 }

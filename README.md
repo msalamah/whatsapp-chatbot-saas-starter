@@ -36,6 +36,8 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so
 - `DELETE /tenants/:key` — remove a tenant (default tenant is protected).
 - Payloads are validated; invalid requests return HTTP 422 with field-level details. Optionally send `X-Admin-Actor: <name>` to tag structured logs.
 - `GET /tenants/activity?limit=50` — retrieve recent admin actions for audit views. Supply `X-Admin-Actor`/`X-Admin-Role` on every request for attribution.
+- `GET /tenants/:key/pending-bookings` — list pending WhatsApp requests for that tenant.
+- `POST /tenants/:key/pending-bookings/:customerId/approve|reject` — approve or reject a booking (sends confirmation back to the customer, updates calendar if enabled).
 
 > ⚠️ Treat bearer tokens like secrets. Rotate them regularly and serve the admin routes behind VPN or zero-trust access in production.
 
@@ -60,6 +62,7 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 - Features: tenant roster with inspect/delete actions, create/update forms for services + calendar settings, token rotation, delete (non-default tenants). Toggle “Show raw tokens” to fetch sensitive fields.
 - The portal persists the last-used base URL and token in `localStorage`; use the Disconnect button to clear it.
 - Audit trail panel surfaces the latest tenant changes by reading from `GET /tenants/activity`.
+- Pending approvals panel lets owners review and approve/reject WhatsApp bookings without sending manual commands.
 - Run `npm run admin:bundle` to emit `apps/admin/dist.tar.gz` for static hosting; CI uploads the same bundle as a build artifact.
 - `npm test` – run the vitest unit suite (webhook verification, tenant validation, availability logic). Integration tests spin up an in-memory Postgres instance automatically.
 

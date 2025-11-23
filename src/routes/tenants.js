@@ -10,6 +10,8 @@ import {
 import { validateTenantCreate, validateTenantUpdate, validateTokenRotation } from "../tenants/tenantValidation.js";
 import { logger } from "../utils/logger.js";
 import { appendActivity, listActivities } from "../services/adminActivityStore.js";
+import { listPendingByTenant } from "../services/pendingBookingStore.js";
+import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
 
 const router = express.Router();
 
@@ -73,6 +75,48 @@ router.get("/:key", async (req, res) => {
   }
 });
 
+router.get("/:key/pending-bookings", async (req, res) => {
+  try {
+    const pending = await listPendingByTenant(req.params.key);
+    return res.json({ pending });
+  } catch (err) {
+    logger.error("Failed to list pending bookings", "tenant-admin", { error: err.message });
+    return res.status(500).json({ error: "Failed to list pending bookings" });
+  }
+});
+
+router.post("/:key/pending-bookings/:customerId/approve", async (req, res) => {
+  const actor = resolveActor(req);
+  const role = resolveRole(req);
+  try {
+    const booking = await approvePendingBooking({ tenantKey: req.params.key, customerId: req.params.customerId });
+    recordActivity("pending.approved", { actor, role, tenantKey: req.params.key, details: { customerId: req.params.customerId, slot: booking.slotLabel } });
+    return res.json({ status: "approved" });
+  } catch (err) {
+    logger.warn("Failed to approve pending booking", "tenant-admin", { actor, role, tenantKey: req.params.key, error: err.message });
+    if (/not found/i.test(err.message)) {
+      return res.status(404).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+});
+
+router.post("/:key/pending-bookings/:customerId/reject", async (req, res) => {
+  const actor = resolveActor(req);
+  const role = resolveRole(req);
+  try {
+    const booking = await rejectPendingBooking({ tenantKey: req.params.key, customerId: req.params.customerId });
+    recordActivity("pending.rejected", { actor, role, tenantKey: req.params.key, details: { customerId: req.params.customerId, slot: booking.slotLabel } });
+    return res.json({ status: "rejected" });
+  } catch (err) {
+    logger.warn("Failed to reject pending booking", "tenant-admin", { actor, role, tenantKey: req.params.key, error: err.message });
+    if (/not found/i.test(err.message)) {
+      return res.status(404).json({ error: err.message });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+});
+
 router.post("/", async (req, res) => {
   const actor = resolveActor(req);
   const role = resolveRole(req);
@@ -83,7 +127,7 @@ router.post("/", async (req, res) => {
   }
   try {
     const key = await registerTenant(value);
-    const tenant = getTenantSummary(key);
+    const tenant = await getTenantSummary(key);
     recordActivity("tenant.created", {
       actor,
       role,
@@ -106,14 +150,14 @@ router.patch("/:key", async (req, res) => {
     return res.status(422).json({ error: "Validation failed", details: errors });
   }
   try {
-    const updated = updateTenant(req.params.key, value);
+    const updated = await updateTenant(req.params.key, value);
     recordActivity("tenant.updated", {
       actor,
       role,
       tenantKey: updated.key,
       details: { fields: Object.keys(value) }
     });
-    return res.json({ tenant: getTenantSummary(updated.key) });
+    return res.json({ tenant: await getTenantSummary(updated.key) });
   } catch (err) {
     logger.warn("Failed to update tenant", "tenant-admin", { actor, role, tenantKey: req.params.key, error: err.message });
     if (/not found/i.test(err.message)) {
@@ -132,13 +176,13 @@ router.post("/:key/rotate-token", async (req, res) => {
     return res.status(422).json({ error: "Validation failed", details: errors });
   }
   try {
-    rotateTenantToken(req.params.key, value.token);
+    await rotateTenantToken(req.params.key, value.token);
     recordActivity("tenant.token_rotated", {
       actor,
       role,
       tenantKey: req.params.key
     });
-    return res.json({ tenant: getTenantSummary(req.params.key) });
+    return res.json({ tenant: await getTenantSummary(req.params.key) });
   } catch (err) {
     logger.warn("Failed to rotate tenant token", "tenant-admin", { actor, role, tenantKey: req.params.key, error: err.message });
     if (/not found/i.test(err.message)) {
@@ -152,7 +196,7 @@ router.delete("/:key", async (req, res) => {
   const actor = resolveActor(req);
   const role = resolveRole(req);
   try {
-    deleteTenant(req.params.key);
+    await deleteTenant(req.params.key);
     recordActivity("tenant.deleted", {
       actor,
       role,

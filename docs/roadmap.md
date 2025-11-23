@@ -22,6 +22,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [~] Add secure auth & role management for the admin portal (actor/role headers in place, expand enforcement later)
 - [x] Integrate audit logging and activity timeline in admin UI
 - [x] Deliver deployment bundle and automated build pipeline for the admin app
+- [x] Ship owner-facing approval UI (pending bookings dashboard + approve/reject flows)
 
 ## Testing & quality gates
 - [x] Add unit tests for webhook verification, booking flow, and services

@@ -3,8 +3,9 @@ import { AuthPanel } from "./components/AuthPanel";
 import { TenantTable } from "./components/TenantTable";
 import { TenantEditor } from "./components/TenantEditor";
 import { ActivityFeed } from "./components/ActivityFeed";
-import { AdminCredentials, AuditEvent, Tenant, TenantPayload } from "./types";
-import { createTenant, fetchActivity, fetchTenants, patchTenant, removeTenant, rotateToken } from "./api";
+import { PendingApprovals } from "./components/PendingApprovals";
+import { AdminCredentials, AuditEvent, PendingBooking, Tenant, TenantPayload } from "./types";
+import { approvePending, createTenant, fetchActivity, fetchPendingBookings, fetchTenants, patchTenant, rejectPending, removeTenant, rotateToken } from "./api";
 
 interface Notification {
   type: "success" | "error";
@@ -49,6 +50,8 @@ export default function App() {
   const [showSensitive, setShowSensitive] = useState(false);
   const [activity, setActivity] = useState<AuditEvent[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
 
   const connected = Boolean(credentials);
 
@@ -62,6 +65,7 @@ export default function App() {
       setTenants([]);
       setSelectedTenant(null);
       setActivity([]);
+      setPendingBookings([]);
       return;
     }
     setLoading(true);
@@ -85,6 +89,15 @@ export default function App() {
     refreshActivity(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credentials]);
+
+  useEffect(() => {
+    if (!credentials || !selectedTenant) {
+      setPendingBookings([]);
+      return;
+    }
+    loadPending(selectedTenant.key);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [credentials, selectedTenant]);
 
   const handleConnect = (creds: AdminCredentials) => {
     setCredentials(creds);
@@ -122,6 +135,15 @@ export default function App() {
       })
       .catch((err) => notify({ type: "error", message: extractError(err) }))
       .finally(() => setActivityLoading(false));
+  };
+
+  const loadPending = (tenantKey: string) => {
+    if (!credentials) return;
+    setPendingLoading(true);
+    fetchPendingBookings(credentials, tenantKey)
+      .then((list) => setPendingBookings(list))
+      .catch((err) => notify({ type: "error", message: extractError(err) }))
+      .finally(() => setPendingLoading(false));
   };
 
   const handleCreate = async (payload: TenantPayload) => {
@@ -191,6 +213,36 @@ export default function App() {
     return `${tenants.length} tenant${tenants.length === 1 ? "" : "s"}`;
   }, [tenants]);
 
+  const handleApprovePending = async (customerId: string) => {
+    if (!credentials || !selectedTenant) return;
+    setPendingLoading(true);
+    try {
+      await approvePending(credentials, selectedTenant.key, customerId);
+      notify({ type: "success", message: "Booking approved" });
+      loadPending(selectedTenant.key);
+      refreshActivity(false);
+    } catch (err) {
+      notify({ type: "error", message: extractError(err) });
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
+  const handleRejectPending = async (customerId: string) => {
+    if (!credentials || !selectedTenant) return;
+    setPendingLoading(true);
+    try {
+      await rejectPending(credentials, selectedTenant.key, customerId);
+      notify({ type: "success", message: "Booking rejected" });
+      loadPending(selectedTenant.key);
+      refreshActivity(false);
+    } catch (err) {
+      notify({ type: "error", message: extractError(err) });
+    } finally {
+      setPendingLoading(false);
+    }
+  };
+
   return (
     <div className="app-shell">
       {notification && (
@@ -250,6 +302,16 @@ export default function App() {
           onUpdate={handleUpdate}
           onRotate={handleRotate}
         />
+        {selectedTenant && (
+          <PendingApprovals
+            tenantName={selectedTenant.displayName}
+            bookings={pendingBookings}
+            loading={pendingLoading}
+            onRefresh={() => loadPending(selectedTenant.key)}
+            onApprove={handleApprovePending}
+            onReject={handleRejectPending}
+          />
+        )}
         <section className="panel activity-panel">
           <div className="status-bar">
             <h2>Audit trail</h2>

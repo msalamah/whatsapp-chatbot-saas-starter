@@ -56,3 +56,13 @@ export interface AuditEvent {
   tenantKey?: string;
   details?: Record<string, unknown>;
 }
+
+export interface PendingBooking {
+  customerId: string;
+  tenantKey: string;
+  slotLabel?: string;
+  serviceName?: string;
+  servicePrice?: number;
+  serviceCurrency?: string;
+  updatedAt?: string;
+}

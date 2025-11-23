@@ -56,6 +56,14 @@ export async function deletePendingBooking(customerId) {
   await query("DELETE FROM pending_bookings WHERE customer_id = $1", [customerId]);
 }
 
+export async function listPendingByTenant(tenantKey) {
+  const res = await query("SELECT customer_id, data FROM pending_bookings WHERE tenant_key = $1 ORDER BY updated_at DESC", [tenantKey]);
+  return res.rows.map((row) => ({
+    customerId: row.customer_id,
+    ...row.data
+  }));
+}
+
 export async function listPendingBookings() {
   const res = await query("SELECT customer_id, data FROM pending_bookings");
   const map = {};
