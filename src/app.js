@@ -15,7 +15,7 @@ export function createApp() {
 
   const allowedOrigins = process.env.ADMIN_ALLOW_ORIGINS
     ? process.env.ADMIN_ALLOW_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
-    : ["http://localhost:5173", "http://localhost:4173"];
+    : ["http://localhost:5173", "http://localhost:4173", "http://localhost:5174"];
 
   app.use(cors({
     origin: (origin, callback) => {

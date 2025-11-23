@@ -6,3 +6,4 @@ src/config/*token*.json
 apps/admin/dist
 apps/admin/dist.tar.gz
 data/postgres
+apps/owner/dist

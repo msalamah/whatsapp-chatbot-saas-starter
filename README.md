@@ -72,7 +72,8 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 ### Owner portal (tenants)
 
 - Every tenant has an owner portal token (`ownerTokenPreview` is shown in `/tenants` when `includeSensitive=true`). Rotate tokens with `POST /tenants/:key/owner-token`.
-- Owners visit `http://<your-host>/owner/portal`, enter their tenant key + owner token, and manage pending bookings.
+- Owners can either use the static `/owner/portal` page (quick demo) **or** the dedicated React app in `apps/owner`.
+- For the React app, run `npm run owner:dev` (defaults to http://localhost:5174). Set `VITE_API_BASE_URL` in `apps/owner/.env` if your backend runs elsewhere. Build for production with `npm run owner:build` and host the static `apps/owner/dist` output.
 - If the tenant has Google Calendar enabled, the portal links directly to their calendar (pre-populated via the `calendarId` you configured).
 - The portal uses `/owner/login` to issue a JWT and `/owner/pending` plus `/owner/pending/:customerId/approve|reject` to process bookings; responses sync with WhatsApp and Google Calendar automatically.
 
