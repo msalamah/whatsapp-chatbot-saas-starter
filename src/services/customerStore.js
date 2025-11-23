@@ -18,11 +18,26 @@ export async function upsertCustomer({ id, tenantKey, displayName = null, phone 
 
 export async function listCustomersForTenant(tenantKey, { limit = 50 } = {}) {
   const res = await query(
-    `SELECT id, display_name, phone, language, metadata, updated_at
-     FROM customers
-     WHERE tenant_key = $1
-     ORDER BY updated_at DESC
-     LIMIT $2`,
+    `SELECT c.id,
+            c.display_name,
+            c.phone,
+            c.language,
+            c.metadata,
+            c.updated_at,
+            COALESCE(a.appointment_count, 0) AS appointment_count,
+            a.last_booking
+     FROM customers c
+     LEFT JOIN (
+       SELECT customer_id,
+              COUNT(*) AS appointment_count,
+              MAX(start_iso) AS last_booking
+       FROM appointments
+       WHERE tenant_key = $1
+       GROUP BY customer_id
+     ) a ON a.customer_id = c.id
+     WHERE c.tenant_key = $1
+     ORDER BY c.updated_at DESC
+     LIMIT $2::int`,
     [tenantKey, limit]
   );
   return res.rows.map((row) => ({
@@ -31,6 +46,8 @@ export async function listCustomersForTenant(tenantKey, { limit = 50 } = {}) {
     phone: row.phone,
     language: row.language,
     metadata: row.metadata,
-    updatedAt: row.updated_at
+    updatedAt: row.updated_at,
+    appointmentCount: Number(row.appointment_count || 0),
+    lastBooking: row.last_booking
   }));
 }

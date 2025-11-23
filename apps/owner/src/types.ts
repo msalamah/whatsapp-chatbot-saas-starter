@@ -28,6 +28,8 @@ export interface CustomerRecord {
   phone?: string;
   language?: string;
   updatedAt?: string;
+  appointmentCount?: number;
+  lastBooking?: string;
 }
 
 export interface ServiceRecord {

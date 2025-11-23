@@ -18,7 +18,8 @@ export function CustomerList({ items }: Props) {
             <div>
               <strong>{customer.displayName || customer.id}</strong>
               {customer.phone && <div className="muted">{customer.phone}</div>}
-              {customer.language && <div className="muted">Language: {customer.language}</div>}
+              <div className="muted">Bookings: {customer.appointmentCount ?? 0}</div>
+              {customer.lastBooking && <div className="muted">Last: {new Date(customer.lastBooking).toLocaleString()}</div>}
             </div>
           </li>
         ))}
