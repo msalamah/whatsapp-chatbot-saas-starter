@@ -31,11 +31,14 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 
 ## Demo & packaging
 - [x] Prepare scripted demo scenarios with sample conversations/assets
-- [ ] Ship tenant-facing approval portal (owner login, pending list, calendar view)
-  - [ ] Owner authentication & routing
-  - [ ] Pending booking list + approve/reject buttons
-  - [ ] Google Calendar snapshot or link for confirmed bookings
+- [x] Ship tenant-facing approval portal (owner login, pending list, calendar view)
+  - [x] Owner authentication & routing
+  - [x] Pending booking list + approve/reject buttons
+  - [x] Google Calendar snapshot or link for confirmed bookings
 - [ ] Expand README with quickstart, troubleshooting, and video walkthrough
+  - [x] Quickstart & onboarding guide
+  - [x] Troubleshooting FAQ
+  - [ ] Video walkthrough
 
 ## Phase 2 (future initiatives)
 - [ ] CRM layer for customer/contact history and marketing insights

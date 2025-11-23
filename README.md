@@ -6,18 +6,20 @@ Multi-tenant WhatsApp Business webhook starter with calendar integration for sal
 
 ```bash
 ./scripts/bootstrap.sh
-# (fills node_modules, creates .env if missing, prints next steps)
+# installs deps, creates .env, prints next steps
 ```
 
-1. Edit `.env` with your sandbox `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, optional `APP_SECRET`, `DATABASE_URL`, and (for AI responses) `OPENAI_API_KEY`. Run `docker compose up db` for a local Postgres instance if you don’t already have one.
-2. Start the webhook server: `npm run dev`
-3. Expose port 3000: `npx ngrok http 3000`
-4. In Meta App → WhatsApp → Configuration  
-   • Callback URL: `https://<your-ngrok>/webhook`  
-   • Verify Token: same value as `WHATSAPP_VERIFY_TOKEN`  
-   • Subscribe to `messages`, `message_status`, `message_template_status_update`
+1. **Configure secrets** – update `.env` with `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, `APP_SECRET` (if verifying signatures), `DATABASE_URL`, `ADMIN_API_KEYS`, `OWNER_JWT_SECRET`, and `OPENAI_API_KEY`.  
+   • For local Postgres run `docker compose up db`. Default creds: `postgres://chatbot:chatbot@localhost:5432/chatbot`.
+2. **Start services** – `npm run dev` runs the webhook server/admin/owner APIs. Use `npm run admin:dev` in `apps/admin` to hack on the admin portal UI if needed.
+3. **Expose webhook** – `npx ngrok http 3000`, then in Meta App → WhatsApp → Configuration set:  
+   • Callback URL `https://<ngrok>/webhook`  
+   • Verify Token = `WHATSAPP_VERIFY_TOKEN`  
+   • Subscriptions: `messages`, `message_status`, `message_template_status_update`
+4. **Admin portal** – `npm run admin:dev` and visit http://localhost:5173. Connect with `Authorization: Bearer <ADMIN_API_KEY>`. Create/rotate tenants, tokens, services.
+5. **Owner portal** – share each tenant’s `ownerToken` (rotate via `POST /tenants/:key/owner-token`). Owners go to `http://localhost:3000/owner/portal`, enter tenant key + token, and manage pending bookings.
 
-Tenant secrets live in `.env`; keep `src/tenants/tenants.json` without tokens so checked-in defaults stay safe. Postgres stores tenants/services/customers/pending bookings, while `data/admin-activity.json` tracks admin actions.
+Tenant secrets live in `.env`; keep `src/tenants/tenants.json` token-free so seeded defaults are safe. Postgres stores tenants/services/customers/pending bookings; `data/admin-activity.json` tracks admin actions.
 
 ### Data storage model
 
@@ -73,6 +75,15 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 - Owners visit `http://<your-host>/owner/portal`, enter their tenant key + owner token, and manage pending bookings.
 - If the tenant has Google Calendar enabled, the portal links directly to their calendar (pre-populated via the `calendarId` you configured).
 - The portal uses `/owner/login` to issue a JWT and `/owner/pending` plus `/owner/pending/:customerId/approve|reject` to process bookings; responses sync with WhatsApp and Google Calendar automatically.
+
+### Troubleshooting / FAQ
+
+- **Webhook verification fails (403)** – ensure `WHATSAPP_VERIFY_TOKEN` in Meta matches `.env`. If signatures are enabled, confirm `APP_SECRET` is correct and `req.rawBody` is populated (our `express.json` verify hook handles this).
+- **WhatsApp sends “Invalid signature” logs** – meta is calling from a secondary IP; double-check ngrok is forwarding HTTPS and `APP_SECRET` is set. Remove `APP_SECRET` to bypass verification during testing.
+- **Database connection errors** – verify Postgres is running (`docker compose up db`) and `DATABASE_URL` is reachable. For tests we set `DATABASE_URL=memory`.
+- **Owner portal login fails** – rotate the owner token via admin API, copy the new value exactly (tokens are case sensitive), and make sure you’re using the tenant key (e.g., `beachside-spa-xxxx`).
+- **Calendar button missing** – only tenants with `calendar.enabled=true` and a `calendarId` see the link. Update their calendar settings via admin portal or JSON seed.
+- **Messages not delivered** – confirm `WABA_TOKEN` and `PHONE_NUMBER_ID` are correct and Meta sandbox has your number added. Use the admin audit log to confirm actions reached the API.
 
 ### Availability & calendar
 
