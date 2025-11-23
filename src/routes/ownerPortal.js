@@ -54,8 +54,20 @@ router.get("/pending", async (req, res) => {
 });
 
 router.get("/appointments", async (req, res) => {
-  const { limit = 50 } = req.query;
-  const appointments = await listAppointmentsForTenant(req.owner.tenantKey, { limit: Number(limit) || 50 });
+  const { limit = 50, range = "all", from, to } = req.query;
+  let fromISO = from ? new Date(String(from)).toISOString() : null;
+  let toISO = to ? new Date(String(to)).toISOString() : null;
+  if (!fromISO && range === "upcoming") {
+    fromISO = new Date().toISOString();
+  }
+  if (!toISO && range === "past") {
+    toISO = new Date().toISOString();
+  }
+  const appointments = await listAppointmentsForTenant(req.owner.tenantKey, {
+    limit: Number(limit) || 50,
+    from: fromISO,
+    to: toISO
+  });
   res.json({ appointments });
 });
 

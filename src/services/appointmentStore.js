@@ -9,10 +9,16 @@ export async function createAppointment({ tenantKey, customerId, serviceId, serv
   );
 }
 
-export async function listAppointmentsForTenant(tenantKey, { limit = 50 } = {}) {
+export async function listAppointmentsForTenant(tenantKey, { limit = 50, from = null, to = null } = {}) {
   const res = await query(
-    `SELECT * FROM appointments WHERE tenant_key = $1 ORDER BY start_iso DESC LIMIT $2`,
-    [tenantKey, limit]
+    `SELECT *
+     FROM appointments
+     WHERE tenant_key = $1
+       AND ($3::timestamptz IS NULL OR start_iso::timestamptz >= $3::timestamptz)
+       AND ($4::timestamptz IS NULL OR start_iso::timestamptz <= $4::timestamptz)
+     ORDER BY start_iso DESC
+     LIMIT $2::int`,
+    [tenantKey, limit, from, to]
   );
   return res.rows;
 }

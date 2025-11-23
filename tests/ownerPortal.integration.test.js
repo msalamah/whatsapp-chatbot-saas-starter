@@ -42,14 +42,14 @@ describe("Owner portal", () => {
       .expect(200);
 
     const appointments = await request(app)
-      .get("/owner/appointments")
+      .get("/owner/appointments?range=past&limit=10")
       .set("Authorization", `Bearer ${login.body.token}`)
       .expect(200);
     expect(Array.isArray(appointments.body.appointments)).toBe(true);
     expect(appointments.body.appointments.length).toBeGreaterThanOrEqual(1);
 
     const customers = await request(app)
-      .get("/owner/customers")
+      .get("/owner/customers?q=demo&limit=10")
       .set("Authorization", `Bearer ${login.body.token}`)
       .expect(200);
     expect(Array.isArray(customers.body.customers)).toBe(true);
