@@ -27,6 +27,7 @@ describe("Owner portal", () => {
       .send({ tenantKey: "default", token: "demo-owner-token" })
       .expect(200);
     expect(login.body.token).toBeTruthy();
+    expect(login.body.tenant?.calendarLink).toMatch(/https:\/\/calendar\.google\.com/);
 
     const pending = await request(app)
       .get("/owner/pending")

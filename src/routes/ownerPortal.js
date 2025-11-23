@@ -11,6 +11,12 @@ const router = express.Router();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ownerHtmlPath = path.resolve(__dirname, "../../public/owner/index.html");
 
+function buildCalendarLink(tenant) {
+  if (!tenant?.calendar?.calendarId) return null;
+  const encoded = encodeURIComponent(tenant.calendar.calendarId);
+  return `https://calendar.google.com/calendar/u/0/r?cid=${encoded}`;
+}
+
 router.post("/login", async (req, res) => {
   const { tenantKey, token } = req.body || {};
   if (!tenantKey || !token) {
@@ -21,7 +27,14 @@ router.post("/login", async (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
   const jwt = signOwnerToken({ tenantKey });
-  return res.json({ token: jwt, tenant: { key: tenant.key, name: tenant.displayName } });
+  return res.json({
+    token: jwt,
+    tenant: {
+      key: tenant.key,
+      name: tenant.displayName,
+      calendarLink: buildCalendarLink(tenant)
+    }
+  });
 });
 
 router.get("/portal", (_req, res) => {

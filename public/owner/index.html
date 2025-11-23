@@ -28,6 +28,7 @@
       <div id="pending-view" class="hidden">
         <h2>Pending bookings</h2>
         <p id="tenantLabel" class="muted"></p>
+        <button id="calendarBtn" class="hidden">Open Google Calendar</button>
         <button id="refreshBtn">Refresh</button>
         <ul id="pendingList"></ul>
         <button id="logoutBtn">Logout</button>
@@ -40,6 +41,8 @@
       const tenantLabel = document.getElementById("tenantLabel");
       const tokenKey = "ownerPortalToken";
       const tenantKeyKey = "ownerPortalTenant";
+      const tenantNameKey = "ownerPortalTenantName";
+      const tenantCalendarKey = "ownerPortalCalendar";
 
       async function api(path, options = {}) {
         const token = localStorage.getItem(tokenKey);
@@ -66,9 +69,16 @@
           const res = await api("/owner/login", { method: "POST", body: JSON.stringify({ tenantKey, token }) });
           localStorage.setItem(tokenKey, res.token);
           localStorage.setItem(tenantKeyKey, tenantKey);
-          tenantLabel.textContent = res.tenant?.name || tenantKey;
+          localStorage.setItem(tenantNameKey, res.tenant?.name || tenantKey);
+          if (res.tenant?.calendarLink) {
+            localStorage.setItem(tenantCalendarKey, res.tenant.calendarLink);
+          } else {
+            localStorage.removeItem(tenantCalendarKey);
+          }
+          updateTenantLabel();
           loginView.classList.add("hidden");
           pendingView.classList.remove("hidden");
+          updateCalendarButton();
           loadPending();
         } catch (err) {
           alert("Login failed");
@@ -115,11 +125,28 @@
         }
       }
 
+      function updateTenantLabel() {
+        tenantLabel.textContent = localStorage.getItem(tenantNameKey) || "";
+      }
+
+      function updateCalendarButton() {
+        const calendarBtn = document.getElementById("calendarBtn");
+        const link = localStorage.getItem(tenantCalendarKey);
+        if (link) {
+          calendarBtn.classList.remove("hidden");
+          calendarBtn.onclick = () => window.open(link, "_blank");
+        } else {
+          calendarBtn.classList.add("hidden");
+        }
+      }
+
       document.getElementById("loginBtn").onclick = login;
       document.getElementById("refreshBtn").onclick = loadPending;
       document.getElementById("logoutBtn").onclick = () => {
         localStorage.removeItem(tokenKey);
         localStorage.removeItem(tenantKeyKey);
+        localStorage.removeItem(tenantNameKey);
+        localStorage.removeItem(tenantCalendarKey);
         pendingList.innerHTML = "";
         pendingView.classList.add("hidden");
         loginView.classList.remove("hidden");
@@ -129,6 +156,8 @@
       if (existingToken) {
         loginView.classList.add("hidden");
         pendingView.classList.remove("hidden");
+        updateTenantLabel();
+        updateCalendarButton();
         loadPending();
       }
     </script>

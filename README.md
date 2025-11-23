@@ -71,6 +71,7 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 
 - Every tenant has an owner portal token (`ownerTokenPreview` is shown in `/tenants` when `includeSensitive=true`). Rotate tokens with `POST /tenants/:key/owner-token`.
 - Owners visit `http://<your-host>/owner/portal`, enter their tenant key + owner token, and manage pending bookings.
+- If the tenant has Google Calendar enabled, the portal links directly to their calendar (pre-populated via the `calendarId` you configured).
 - The portal uses `/owner/login` to issue a JWT and `/owner/pending` plus `/owner/pending/:customerId/approve|reject` to process bookings; responses sync with WhatsApp and Google Calendar automatically.
 
 ### Availability & calendar
