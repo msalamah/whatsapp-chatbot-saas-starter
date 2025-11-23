@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { getTenantByKey } from "../tenants/tenantManager.js";
 import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
+import { listAppointmentsForTenant } from "../services/appointmentStore.js";
 import { ownerAuth, signOwnerToken } from "../middleware/ownerAuth.js";
 
 const router = express.Router();
@@ -47,6 +48,11 @@ router.get("/pending", async (req, res) => {
   const tenantKey = req.owner.tenantKey;
   const pending = await listPendingByTenant(tenantKey);
   res.json({ pending });
+});
+
+router.get("/appointments", async (req, res) => {
+  const appointments = await listAppointmentsForTenant(req.owner.tenantKey, { limit: 50 });
+  res.json({ appointments });
 });
 
 router.post("/pending/:customerId/approve", async (req, res) => {

@@ -6,7 +6,7 @@
     <title>Owner Portal</title>
     <style>
       body { font-family: Arial, sans-serif; background: #0f172a; color: #e2e8f0; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-      .card { background: rgba(15, 23, 42, 0.85); padding: 2rem; border-radius: 12px; width: min(480px, 90%); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); }
+      .card { background: rgba(15, 23, 42, 0.85); padding: 2rem; border-radius: 12px; width: min(520px, 95%); box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4); }
       input { width: 100%; padding: 0.6rem; margin-bottom: 0.75rem; border-radius: 8px; border: 1px solid rgba(226, 232, 240, 0.2); background: rgba(15, 23, 42, 0.6); color: inherit; }
       button { width: 100%; padding: 0.7rem; border: none; border-radius: 8px; background: linear-gradient(135deg, #38bdf8, #0ea5e9); color: #0f172a; font-weight: bold; cursor: pointer; }
       ul { list-style: none; padding: 0; }
@@ -29,8 +29,10 @@
         <h2>Pending bookings</h2>
         <p id="tenantLabel" class="muted"></p>
         <button id="calendarBtn" class="hidden">Open Google Calendar</button>
-        <button id="refreshBtn">Refresh</button>
+        <button id="refreshPendingBtn">Refresh Pending</button>
         <ul id="pendingList"></ul>
+        <h3>Recent approvals</h3>
+        <ul id="appointmentsList"></ul>
         <button id="logoutBtn">Logout</button>
       </div>
     </div>
@@ -38,6 +40,7 @@
       const loginView = document.getElementById("login-view");
       const pendingView = document.getElementById("pending-view");
       const pendingList = document.getElementById("pendingList");
+      const appointmentsList = document.getElementById("appointmentsList");
       const tenantLabel = document.getElementById("tenantLabel");
       const tokenKey = "ownerPortalToken";
       const tenantKeyKey = "ownerPortalTenant";
@@ -80,6 +83,7 @@
           pendingView.classList.remove("hidden");
           updateCalendarButton();
           loadPending();
+          loadAppointments();
         } catch (err) {
           alert("Login failed");
         }
@@ -116,10 +120,29 @@
         }
       }
 
+      async function loadAppointments() {
+        try {
+          const data = await api("/owner/appointments");
+          appointmentsList.innerHTML = "";
+          if (!data.appointments || !data.appointments.length) {
+            appointmentsList.innerHTML = '<li><span class="muted">No recent approvals</span></li>';
+            return;
+          }
+          data.appointments.forEach((item) => {
+            const li = document.createElement("li");
+            li.innerHTML = `<strong>${item.service_name || "Service"}</strong><div class="muted">${item.slot_label || item.start_iso || ""}</div>`;
+            appointmentsList.appendChild(li);
+          });
+        } catch (err) {
+          appointmentsList.innerHTML = '<li><span class="muted">Failed to load appointments</span></li>';
+        }
+      }
+
       async function updateBooking(customerId, action) {
         try {
           await api(`/owner/pending/${customerId}/${action}`, { method: "POST" });
           loadPending();
+          loadAppointments();
         } catch (err) {
           alert("Failed to update booking");
         }
@@ -141,13 +164,17 @@
       }
 
       document.getElementById("loginBtn").onclick = login;
-      document.getElementById("refreshBtn").onclick = loadPending;
+      document.getElementById("refreshPendingBtn").onclick = () => {
+        loadPending();
+        loadAppointments();
+      };
       document.getElementById("logoutBtn").onclick = () => {
         localStorage.removeItem(tokenKey);
         localStorage.removeItem(tenantKeyKey);
         localStorage.removeItem(tenantNameKey);
         localStorage.removeItem(tenantCalendarKey);
         pendingList.innerHTML = "";
+        appointmentsList.innerHTML = "";
         pendingView.classList.add("hidden");
         loginView.classList.remove("hidden");
       };
@@ -159,6 +186,7 @@
         updateTenantLabel();
         updateCalendarButton();
         loadPending();
+        loadAppointments();
       }
     </script>
   </body>

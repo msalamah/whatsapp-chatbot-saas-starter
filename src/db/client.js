@@ -84,6 +84,21 @@ export async function initializeDatabase() {
     );
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS appointments (
+      id text PRIMARY KEY,
+      tenant_key text REFERENCES tenants(key) ON DELETE CASCADE,
+      customer_id text,
+      service_id text,
+      service_name text,
+      start_iso text,
+      end_iso text,
+      slot_label text,
+      notes text,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+
   await seedDefaultTenants();
 }
 

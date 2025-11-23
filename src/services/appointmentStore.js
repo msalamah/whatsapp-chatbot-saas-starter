@@ -1,0 +1,18 @@
+import { v4 as uuidv4 } from "uuid";
+import { query } from "../db/client.js";
+
+export async function createAppointment({ tenantKey, customerId, serviceId, serviceName, startISO, endISO, slotLabel, notes = null }) {
+  await query(
+    `INSERT INTO appointments (id, tenant_key, customer_id, service_id, service_name, start_iso, end_iso, slot_label, notes)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+    [uuidv4(), tenantKey, customerId, serviceId, serviceName, startISO, endISO, slotLabel, notes]
+  );
+}
+
+export async function listAppointmentsForTenant(tenantKey, { limit = 50 } = {}) {
+  const res = await query(
+    `SELECT * FROM appointments WHERE tenant_key = $1 ORDER BY start_iso DESC LIMIT $2`,
+    [tenantKey, limit]
+  );
+  return res.rows;
+}

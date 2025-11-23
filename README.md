@@ -23,7 +23,7 @@ Tenant secrets live in `.env`; keep `src/tenants/tenants.json` token-free so see
 
 ### Data storage model
 
-- Postgres (configure with `DATABASE_URL`) stores tenants, services, customers, and pending bookings. On first boot, `src/tenants/tenants.json` seeds the database with sample tenants; after that everything is persisted in SQL.
+- Postgres (configure with `DATABASE_URL`) stores tenants, services, customers, pending bookings, and confirmed appointments. On first boot, `src/tenants/tenants.json` seeds the database with sample tenants; after that everything is persisted in SQL.
 - Admin activity is written to `data/admin-activity.json`; the audit feed in the portal reads from here.
 - Tests run against an in-memory Postgres instance by setting `DATABASE_URL=memory` (handled automatically via `npm test`).
 

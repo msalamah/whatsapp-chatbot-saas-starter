@@ -8,7 +8,7 @@
     "admin:dev": "npm --prefix apps/admin run dev",
     "admin:build": "npm --prefix apps/admin run build",
     "admin:bundle": "npm --prefix apps/admin run build && tar -czf apps/admin/dist.tar.gz -C apps/admin/dist .",
-    "test": "cross-env DATABASE_URL=memory OWNER_JWT_SECRET=test-owner-secret vitest run"
+    "test": "cross-env NODE_ENV=test DATABASE_URL=memory OWNER_JWT_SECRET=test-owner-secret vitest run"
   },
   "dependencies": {
     "cors": "^2.8.5",

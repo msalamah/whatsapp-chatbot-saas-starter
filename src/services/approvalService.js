@@ -2,6 +2,7 @@ import { getTenantByKey } from "../tenants/tenantManager.js";
 import { getPendingBooking, deletePendingBooking } from "./pendingBookingStore.js";
 import { confirmEvent, cancelEvent } from "./calendarService.js";
 import { sendText } from "./whatsappService.js";
+import { createAppointment } from "./appointmentStore.js";
 
 function buildApprovedMessage(pending) {
   if (pending.serviceName) {
@@ -29,6 +30,15 @@ export async function approvePendingBooking({ tenantKey, customerId }) {
   }
   await sendText(tenant.key, customerId, buildApprovedMessage(pending));
   await deletePendingBooking(customerId);
+  await createAppointment({
+    tenantKey,
+    customerId,
+    serviceId: pending.serviceId,
+    serviceName: pending.serviceName,
+    startISO: pending.startISO,
+    endISO: pending.endISO,
+    slotLabel: pending.slotLabel
+  });
   return pending;
 }
 
