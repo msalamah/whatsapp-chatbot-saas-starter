@@ -54,12 +54,14 @@ router.get("/pending", async (req, res) => {
 });
 
 router.get("/appointments", async (req, res) => {
-  const appointments = await listAppointmentsForTenant(req.owner.tenantKey, { limit: 50 });
+  const { limit = 50 } = req.query;
+  const appointments = await listAppointmentsForTenant(req.owner.tenantKey, { limit: Number(limit) || 50 });
   res.json({ appointments });
 });
 
 router.get("/customers", async (req, res) => {
-  const customers = await listCustomersForTenant(req.owner.tenantKey, { limit: 100 });
+  const { limit = 100, q = "" } = req.query;
+  const customers = await listCustomersForTenant(req.owner.tenantKey, { limit: Number(limit) || 100, search: String(q) });
   res.json({ customers });
 });
 

@@ -16,7 +16,8 @@ export async function upsertCustomer({ id, tenantKey, displayName = null, phone 
   );
 }
 
-export async function listCustomersForTenant(tenantKey, { limit = 50 } = {}) {
+export async function listCustomersForTenant(tenantKey, { limit = 50, search = "" } = {}) {
+  const like = `%${search.toLowerCase()}%`;
   const res = await query(
     `SELECT c.id,
             c.display_name,
@@ -36,9 +37,10 @@ export async function listCustomersForTenant(tenantKey, { limit = 50 } = {}) {
        GROUP BY customer_id
      ) a ON a.customer_id = c.id
      WHERE c.tenant_key = $1
+       AND ($3 = '' OR LOWER(c.display_name) LIKE $3 OR LOWER(c.phone) LIKE $3 OR c.id LIKE $3)
      ORDER BY c.updated_at DESC
      LIMIT $2::int`,
-    [tenantKey, limit]
+    [tenantKey, limit, search ? like : ""]
   );
   return res.rows.map((row) => ({
     id: row.id,
