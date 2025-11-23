@@ -39,3 +39,13 @@ export interface ServiceRecord {
   maxMinutes?: number;
   description?: string;
 }
+
+export interface ServiceFormState {
+  id?: string;
+  name: string;
+  minMinutes: number;
+  maxMinutes: number;
+  price: number;
+  currency: string;
+  description: string;
+}

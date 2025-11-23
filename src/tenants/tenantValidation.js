@@ -177,6 +177,17 @@ export function validateTenantUpdate(payload = {}) {
     if (services !== undefined) value.services = services;
   }
 
+  if (payload.serviceUpdate !== undefined) {
+    const normalized = validateServices([payload.serviceUpdate], errors, { partial: true });
+    if (normalized && normalized.length) {
+      value.serviceUpdate = normalized[0];
+    }
+  }
+
+  if (payload.serviceDelete !== undefined) {
+    value.serviceDelete = payload.serviceDelete;
+  }
+
   if (payload.metadata !== undefined) {
     value.metadata = payload.metadata;
   }
@@ -195,4 +206,12 @@ export function validateTokenRotation(payload = {}) {
     errors.push({ field: "token", message: "token is required" });
   }
   return { value: { token }, errors };
+}
+
+export function validateOwnerServiceUpdate(payload = {}) {
+  const { errors, value } = validateTenantUpdate({ serviceUpdate: payload });
+  if (errors.length || !value.serviceUpdate) {
+    throw new Error(errors[0]?.message || "Invalid service payload");
+  }
+  return value.serviceUpdate;
 }

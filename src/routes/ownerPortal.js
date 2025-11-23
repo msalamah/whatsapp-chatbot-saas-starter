@@ -6,7 +6,8 @@ import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
 import { listAppointmentsForTenant } from "../services/appointmentStore.js";
 import { listCustomersForTenant } from "../services/customerStore.js";
-import { listServicesForTenantKey } from "../tenants/tenantManager.js";
+import { listServicesForTenantKey, updateTenant } from "../tenants/tenantManager.js";
+import { validateOwnerServiceUpdate } from "../tenants/tenantValidation.js";
 import { ownerAuth, signOwnerToken } from "../middleware/ownerAuth.js";
 
 const router = express.Router();
@@ -65,6 +66,26 @@ router.get("/customers", async (req, res) => {
 router.get("/services", async (req, res) => {
   const services = await listServicesForTenantKey(req.owner.tenantKey);
   res.json({ services });
+});
+
+router.post("/services", async (req, res) => {
+  try {
+    const updates = validateOwnerServiceUpdate(req.body || {});
+    const updated = await updateTenant(req.owner.tenantKey, { serviceUpdate: updates });
+    res.json({ services: updated?.services || [] });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete("/services/:serviceId", async (req, res) => {
+  try {
+    await updateTenant(req.owner.tenantKey, { serviceDelete: req.params.serviceId });
+    const services = await listServicesForTenantKey(req.owner.tenantKey);
+    res.json({ services });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.post("/pending/:customerId/approve", async (req, res) => {

@@ -168,6 +168,12 @@ export async function updateTenant(key, updates = {}) {
   if (updates.services) {
     await replaceServices(key, updates.services);
   }
+  if (updates.serviceUpdate) {
+    await upsertService(key, updates.serviceUpdate);
+  }
+  if (updates.serviceDelete) {
+    await query("DELETE FROM services WHERE tenant_key = $1 AND id = $2", [key, updates.serviceDelete]);
+  }
   return await getTenantByKey(key);
 }
 
@@ -226,6 +232,23 @@ async function replaceServices(tenantKey, services = []) {
       [tenantKey, svc.id, svc.name, svc.minMinutes, svc.maxMinutes, svc.price, svc.currency, svc.description, JSON.stringify(svc.keywords || [])]
     );
   }
+}
+
+async function upsertService(tenantKey, service) {
+  const normalized = normalizeServices([service])[0];
+  await query(
+    `INSERT INTO services (tenant_key, id, name, min_minutes, max_minutes, price, currency, description, keywords)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+     ON CONFLICT (tenant_key, id) DO UPDATE SET
+       name = EXCLUDED.name,
+       min_minutes = EXCLUDED.min_minutes,
+       max_minutes = EXCLUDED.max_minutes,
+       price = EXCLUDED.price,
+       currency = EXCLUDED.currency,
+       description = EXCLUDED.description,
+       keywords = EXCLUDED.keywords`,
+    [tenantKey, normalized.id, normalized.name, normalized.minMinutes, normalized.maxMinutes, normalized.price, normalized.currency, normalized.description, JSON.stringify(normalized.keywords || [])]
+  );
 }
 
 function maskTenant(tenant, includeSensitive) {

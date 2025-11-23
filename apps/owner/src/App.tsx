@@ -5,7 +5,7 @@ import { PendingList } from "./components/PendingList";
 import { AppointmentsList } from "./components/AppointmentsList";
 import { CustomerList } from "./components/CustomerList";
 import { ServiceList } from "./components/ServiceList";
-import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord } from "./types";
+import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord, ServiceFormState } from "./types";
 
 const TOKEN_KEY = "ownerPortalToken";
 const TENANT_NAME_KEY = "ownerPortalTenantName";
@@ -138,8 +138,40 @@ export default function App() {
         />
         <AppointmentsList items={appointments} />
         <CustomerList items={customers} />
-        <ServiceList items={services} />
+        <ServiceList
+          items={services}
+          onSave={(svc) => handleSaveService(svc)}
+          onDelete={(id) => handleDeleteService(id)}
+          busy={loading}
+        />
       </div>
     </main>
   );
 }
+  async function handleSaveService(service: ServiceFormState) {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const updated = await upsertService(token, service);
+      setServices(updated.services);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save service");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleDeleteService(serviceId: string) {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const updated = await deleteService(token, serviceId);
+      setServices(updated.services);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete service");
+    } finally {
+      setLoading(false);
+    }
+  }
