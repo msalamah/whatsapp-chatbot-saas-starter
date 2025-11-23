@@ -31,7 +31,10 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 
 ## Demo & packaging
 - [x] Prepare scripted demo scenarios with sample conversations/assets
-- [ ] Ship owner-facing approval UI or alternate approval workflow
+- [ ] Ship tenant-facing approval portal (owner login, pending list, calendar view)
+  - [ ] Owner authentication & routing
+  - [ ] Pending booking list + approve/reject buttons
+  - [ ] Google Calendar snapshot or link for confirmed bookings
 - [ ] Expand README with quickstart, troubleshooting, and video walkthrough
 
 ## Phase 2 (future initiatives)
