@@ -1,4 +1,4 @@
-import { PendingBooking, Appointment, OwnerCredentials } from "./types";
+import { PendingBooking, Appointment, OwnerCredentials, CustomerRecord, ServiceRecord } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
@@ -34,4 +34,14 @@ export async function fetchAppointments(token: string): Promise<Appointment[]> {
 
 export async function resolvePending(token: string, customerId: string, action: "approve" | "reject") {
   return request(`/owner/pending/${customerId}/${action}`, { method: "POST" }, token);
+}
+
+export async function fetchCustomers(token: string): Promise<CustomerRecord[]> {
+  const data = await request("/owner/customers", {}, token);
+  return data.customers || [];
+}
+
+export async function fetchServices(token: string): Promise<ServiceRecord[]> {
+  const data = await request("/owner/services", {}, token);
+  return data.services || [];
 }

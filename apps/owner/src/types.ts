@@ -21,3 +21,21 @@ export interface OwnerCredentials {
   token: string;
   tenant: TenantInfo;
 }
+
+export interface CustomerRecord {
+  id: string;
+  displayName?: string;
+  phone?: string;
+  language?: string;
+  updatedAt?: string;
+}
+
+export interface ServiceRecord {
+  id: string;
+  name: string;
+  price?: number;
+  currency?: string;
+  minMinutes?: number;
+  maxMinutes?: number;
+  description?: string;
+}

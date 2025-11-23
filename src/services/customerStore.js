@@ -15,3 +15,22 @@ export async function upsertCustomer({ id, tenantKey, displayName = null, phone 
     [id, tenantKey, displayName, phone, language, metadata ? JSON.stringify(metadata) : null]
   );
 }
+
+export async function listCustomersForTenant(tenantKey, { limit = 50 } = {}) {
+  const res = await query(
+    `SELECT id, display_name, phone, language, metadata, updated_at
+     FROM customers
+     WHERE tenant_key = $1
+     ORDER BY updated_at DESC
+     LIMIT $2`,
+    [tenantKey, limit]
+  );
+  return res.rows.map((row) => ({
+    id: row.id,
+    displayName: row.display_name,
+    phone: row.phone,
+    language: row.language,
+    metadata: row.metadata,
+    updatedAt: row.updated_at
+  }));
+}

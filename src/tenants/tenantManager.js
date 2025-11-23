@@ -195,6 +195,11 @@ export function getServiceById(tenant, serviceId) {
   return tenant.services.find((s) => s.id === serviceId) || null;
 }
 
+export async function listServicesForTenantKey(key) {
+  const tenant = await getTenantByKey(key);
+  return tenant?.services || [];
+}
+
 export function findServiceByText(tenant, text) {
   if (!tenant?.services?.length || !text) return null;
   const lower = text.toLowerCase();

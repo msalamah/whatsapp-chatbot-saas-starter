@@ -47,5 +47,17 @@ describe("Owner portal", () => {
       .expect(200);
     expect(Array.isArray(appointments.body.appointments)).toBe(true);
     expect(appointments.body.appointments.length).toBeGreaterThanOrEqual(1);
+
+    const customers = await request(app)
+      .get("/owner/customers")
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+    expect(Array.isArray(customers.body.customers)).toBe(true);
+
+    const services = await request(app)
+      .get("/owner/services")
+      .set("Authorization", `Bearer ${login.body.token}`)
+      .expect(200);
+    expect(Array.isArray(services.body.services)).toBe(true);
   });
 });

@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { loginOwner, fetchPending, fetchAppointments, resolvePending } from "./api";
+import { loginOwner, fetchPending, fetchAppointments, resolvePending, fetchCustomers, fetchServices } from "./api";
 import { LoginForm } from "./components/LoginForm";
 import { PendingList } from "./components/PendingList";
 import { AppointmentsList } from "./components/AppointmentsList";
-import { PendingBooking, Appointment, TenantInfo } from "./types";
+import { CustomerList } from "./components/CustomerList";
+import { ServiceList } from "./components/ServiceList";
+import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord } from "./types";
 
 const TOKEN_KEY = "ownerPortalToken";
 const TENANT_NAME_KEY = "ownerPortalTenantName";
@@ -20,6 +22,8 @@ export default function App() {
   });
   const [pending, setPending] = useState<PendingBooking[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [services, setServices] = useState<ServiceRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -57,12 +61,16 @@ export default function App() {
     if (!forcedToken) return;
     setLoading(true);
     try {
-      const [pendingData, appointmentData] = await Promise.all([
+      const [pendingData, appointmentData, customersData, servicesData] = await Promise.all([
         fetchPending(forcedToken),
-        fetchAppointments(forcedToken)
+        fetchAppointments(forcedToken),
+        fetchCustomers(forcedToken),
+        fetchServices(forcedToken)
       ]);
       setPending(pendingData);
       setAppointments(appointmentData);
+      setCustomers(customersData);
+      setServices(servicesData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to refresh data");
     } finally {
@@ -92,6 +100,8 @@ export default function App() {
     setTenant(null);
     setPending([]);
     setAppointments([]);
+    setCustomers([]);
+    setServices([]);
   }
 
   if (!isLoggedIn) {
@@ -127,6 +137,8 @@ export default function App() {
           refreshing={loading}
         />
         <AppointmentsList items={appointments} />
+        <CustomerList items={customers} />
+        <ServiceList items={services} />
       </div>
     </main>
   );

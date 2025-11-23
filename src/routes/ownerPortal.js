@@ -5,6 +5,8 @@ import { getTenantByKey } from "../tenants/tenantManager.js";
 import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
 import { listAppointmentsForTenant } from "../services/appointmentStore.js";
+import { listCustomersForTenant } from "../services/customerStore.js";
+import { listServicesForTenantKey } from "../tenants/tenantManager.js";
 import { ownerAuth, signOwnerToken } from "../middleware/ownerAuth.js";
 
 const router = express.Router();
@@ -53,6 +55,16 @@ router.get("/pending", async (req, res) => {
 router.get("/appointments", async (req, res) => {
   const appointments = await listAppointmentsForTenant(req.owner.tenantKey, { limit: 50 });
   res.json({ appointments });
+});
+
+router.get("/customers", async (req, res) => {
+  const customers = await listCustomersForTenant(req.owner.tenantKey, { limit: 100 });
+  res.json({ customers });
+});
+
+router.get("/services", async (req, res) => {
+  const services = await listServicesForTenantKey(req.owner.tenantKey);
+  res.json({ services });
 });
 
 router.post("/pending/:customerId/approve", async (req, res) => {
