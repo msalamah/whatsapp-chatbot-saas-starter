@@ -68,3 +68,13 @@ export async function fetchCustomerDetail(token: string, customerId: string) {
   const data = await request(`/owner/customers/${customerId}`, {}, token);
   return data;
 }
+
+export function downloadCsv(path: string, token: string) {
+  const url = `${API_BASE}${path}`;
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.target = "_blank";
+  anchor.rel = "noopener";
+  anchor.setAttribute("download", "");
+  anchor.click();
+}

@@ -8,7 +8,8 @@ import {
   fetchServices,
   upsertService,
   deleteService,
-  fetchCustomerDetail
+  fetchCustomerDetail,
+  downloadCsv
 } from "./api";
 import { LoginForm } from "./components/LoginForm";
 import { PendingList } from "./components/PendingList";
@@ -184,6 +185,8 @@ export default function App() {
                 Open Calendar
               </button>
             )}
+            <button className="ghost" onClick={() => token && downloadCsv("/owner/exports/customers", token)}>Export customers</button>
+            <button className="ghost" onClick={() => token && downloadCsv("/owner/exports/appointments", token)}>Export appointments</button>
             <button className="ghost" onClick={handleLogout}>Logout</button>
           </div>
         </header>

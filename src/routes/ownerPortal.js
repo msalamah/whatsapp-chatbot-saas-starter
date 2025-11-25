@@ -9,6 +9,7 @@ import { listCustomersForTenant, getCustomerDetail } from "../services/customerS
 import { listServicesForTenantKey, updateTenant } from "../tenants/tenantManager.js";
 import { validateOwnerServiceUpdate } from "../tenants/tenantValidation.js";
 import { ownerAuth, signOwnerToken } from "../middleware/ownerAuth.js";
+import { generateCustomersCsv, generateAppointmentsCsv } from "../services/csvExport.js";
 
 const router = express.Router();
 
@@ -87,6 +88,20 @@ router.get("/customers/:customerId", async (req, res) => {
 router.get("/services", async (req, res) => {
   const services = await listServicesForTenantKey(req.owner.tenantKey);
   res.json({ services });
+});
+
+router.get("/exports/customers", async (req, res) => {
+  const csv = await generateCustomersCsv(req.owner.tenantKey);
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", "attachment; filename=customers.csv");
+  res.send(csv);
+});
+
+router.get("/exports/appointments", async (req, res) => {
+  const csv = await generateAppointmentsCsv(req.owner.tenantKey);
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", "attachment; filename=appointments.csv");
+  res.send(csv);
 });
 
 router.post("/services", async (req, res) => {
