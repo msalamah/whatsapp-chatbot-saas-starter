@@ -22,3 +22,15 @@ export async function listAppointmentsForTenant(tenantKey, { limit = 50, from = 
   );
   return res.rows;
 }
+
+export async function listAppointmentsForCustomer(tenantKey, customerId, { limit = 20 } = {}) {
+  const res = await query(
+    `SELECT *
+     FROM appointments
+     WHERE tenant_key = $1 AND customer_id = $2
+     ORDER BY start_iso DESC
+     LIMIT $3::int`,
+    [tenantKey, customerId, limit]
+  );
+  return res.rows;
+}

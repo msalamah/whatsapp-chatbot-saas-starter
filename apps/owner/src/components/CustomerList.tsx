@@ -2,9 +2,10 @@ import { CustomerRecord } from "../types";
 
 interface Props {
   items: CustomerRecord[];
+  onSelect: (id: string) => void;
 }
 
-export function CustomerList({ items }: Props) {
+export function CustomerList({ items, onSelect }: Props) {
   return (
     <section>
       <header className="section-header">
@@ -20,6 +21,9 @@ export function CustomerList({ items }: Props) {
               {customer.phone && <div className="muted">{customer.phone}</div>}
               <div className="muted">Bookings: {customer.appointmentCount ?? 0}</div>
               {customer.lastBooking && <div className="muted">Last: {new Date(customer.lastBooking).toLocaleString()}</div>}
+            </div>
+            <div className="actions">
+              <button onClick={() => onSelect(customer.id)}>View</button>
             </div>
           </li>
         ))}

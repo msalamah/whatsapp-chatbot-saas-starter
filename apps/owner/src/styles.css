@@ -123,3 +123,24 @@ button.danger {
   width: 100%;
   margin-top: 0.4rem;
 }
+
+.detail-card {
+  position: fixed;
+  top: 5%;
+  right: 5%;
+  width: min(420px, 90%);
+  background: var(--card);
+  border-radius: 18px;
+  padding: 1.5rem;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.metadata-block {
+  background: rgba(2, 6, 23, 0.6);
+  padding: 0.75rem;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  overflow-x: auto;
+}

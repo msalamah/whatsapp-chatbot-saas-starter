@@ -63,3 +63,8 @@ export async function deleteService(token: string, serviceId: string) {
   const data = await request(`/owner/services/${serviceId}`, { method: "DELETE" }, token);
   return data;
 }
+
+export async function fetchCustomerDetail(token: string, customerId: string) {
+  const data = await request(`/owner/customers/${customerId}`, {}, token);
+  return data;
+}

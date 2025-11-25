@@ -7,14 +7,16 @@ import {
   fetchCustomers,
   fetchServices,
   upsertService,
-  deleteService
+  deleteService,
+  fetchCustomerDetail
 } from "./api";
 import { LoginForm } from "./components/LoginForm";
 import { PendingList } from "./components/PendingList";
 import { AppointmentsList } from "./components/AppointmentsList";
 import { CustomerList } from "./components/CustomerList";
 import { ServiceList } from "./components/ServiceList";
-import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord, ServiceFormState } from "./types";
+import { CustomerDetailCard } from "./components/CustomerDetail";
+import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord, ServiceFormState, CustomerDetail } from "./types";
 
 const TOKEN_KEY = "ownerPortalToken";
 const TENANT_NAME_KEY = "ownerPortalTenantName";
@@ -35,6 +37,7 @@ export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [services, setServices] = useState<ServiceRecord[]>([]);
+  const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -118,6 +121,19 @@ export default function App() {
     }
   }
 
+  async function handleViewCustomer(id: string) {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const detail = await fetchCustomerDetail(token, id);
+      setCustomerDetail({ ...detail.customer, appointments: detail.appointments });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load customer");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleDeleteService(serviceId: string) {
     if (!token) return;
     setLoading(true);
@@ -143,6 +159,7 @@ export default function App() {
     setAppointments([]);
     setCustomers([]);
     setServices([]);
+    setCustomerDetail(null);
   }
 
   if (!isLoggedIn) {
@@ -192,9 +209,10 @@ export default function App() {
           refreshing={loading}
         />
         <AppointmentsList items={appointments} />
-        <CustomerList items={customers} />
+        <CustomerList items={customers} onSelect={handleViewCustomer} />
         <ServiceList items={services} onSave={handleSaveService} onDelete={handleDeleteService} busy={loading} />
       </div>
+      {customerDetail && <CustomerDetailCard detail={customerDetail} onClose={() => setCustomerDetail(null)} />}
     </main>
   );
 }

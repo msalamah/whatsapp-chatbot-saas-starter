@@ -53,3 +53,39 @@ export async function listCustomersForTenant(tenantKey, { limit = 50, search = "
     lastBooking: row.last_booking
   }));
 }
+
+export async function getCustomerDetail(tenantKey, customerId) {
+  const res = await query(
+    `SELECT c.id,
+            c.display_name,
+            c.phone,
+            c.language,
+            c.metadata,
+            c.updated_at,
+            COALESCE(a.appointment_count, 0) AS appointment_count,
+            a.last_booking
+     FROM customers c
+     LEFT JOIN (
+       SELECT customer_id,
+              COUNT(*) AS appointment_count,
+              MAX(start_iso) AS last_booking
+       FROM appointments
+       WHERE tenant_key = $1 AND customer_id = $2
+       GROUP BY customer_id
+     ) a ON a.customer_id = c.id
+     WHERE c.tenant_key = $1 AND c.id = $2`,
+    [tenantKey, customerId]
+  );
+  if (!res.rowCount) return null;
+  const row = res.rows[0];
+  return {
+    id: row.id,
+    displayName: row.display_name,
+    phone: row.phone,
+    language: row.language,
+    metadata: row.metadata,
+    updatedAt: row.updated_at,
+    appointmentCount: Number(row.appointment_count || 0),
+    lastBooking: row.last_booking
+  };
+}

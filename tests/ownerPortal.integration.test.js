@@ -53,6 +53,15 @@ describe("Owner portal", () => {
       .set("Authorization", `Bearer ${login.body.token}`)
       .expect(200);
     expect(Array.isArray(customers.body.customers)).toBe(true);
+    if (customers.body.customers.length) {
+      const firstCustomer = customers.body.customers[0];
+      const detail = await request(app)
+        .get(`/owner/customers/${firstCustomer.id}`)
+        .set("Authorization", `Bearer ${login.body.token}`)
+        .expect(200);
+      expect(detail.body.customer.id).toBe(firstCustomer.id);
+      expect(Array.isArray(detail.body.appointments)).toBe(true);
+    }
 
     const services = await request(app)
       .get("/owner/services")

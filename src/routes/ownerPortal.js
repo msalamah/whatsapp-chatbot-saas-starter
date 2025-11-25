@@ -4,8 +4,8 @@ import { fileURLToPath } from "url";
 import { getTenantByKey } from "../tenants/tenantManager.js";
 import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
-import { listAppointmentsForTenant } from "../services/appointmentStore.js";
-import { listCustomersForTenant } from "../services/customerStore.js";
+import { listAppointmentsForTenant, listAppointmentsForCustomer } from "../services/appointmentStore.js";
+import { listCustomersForTenant, getCustomerDetail } from "../services/customerStore.js";
 import { listServicesForTenantKey, updateTenant } from "../tenants/tenantManager.js";
 import { validateOwnerServiceUpdate } from "../tenants/tenantValidation.js";
 import { ownerAuth, signOwnerToken } from "../middleware/ownerAuth.js";
@@ -75,6 +75,13 @@ router.get("/customers", async (req, res) => {
   const { limit = 100, q = "" } = req.query;
   const customers = await listCustomersForTenant(req.owner.tenantKey, { limit: Number(limit) || 100, search: String(q) });
   res.json({ customers });
+});
+
+router.get("/customers/:customerId", async (req, res) => {
+  const customer = await getCustomerDetail(req.owner.tenantKey, req.params.customerId);
+  if (!customer) return res.status(404).json({ error: "Customer not found" });
+  const appointments = await listAppointmentsForCustomer(req.owner.tenantKey, req.params.customerId, { limit: 20 });
+  res.json({ customer, appointments });
 });
 
 router.get("/services", async (req, res) => {

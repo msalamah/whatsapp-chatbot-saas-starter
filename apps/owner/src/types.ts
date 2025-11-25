@@ -32,6 +32,11 @@ export interface CustomerRecord {
   lastBooking?: string;
 }
 
+export interface CustomerDetail extends CustomerRecord {
+  metadata?: Record<string, unknown> | null;
+  appointments?: Appointment[];
+}
+
 export interface ServiceRecord {
   id: string;
   name: string;
