@@ -1,4 +1,4 @@
-import { PendingBooking, Appointment, OwnerCredentials, CustomerRecord, ServiceRecord, ServiceFormState } from "./types";
+import { PendingBooking, Appointment, OwnerCredentials, CustomerRecord, ServiceRecord, ServiceFormState, AnalyticsSummary } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
@@ -77,4 +77,9 @@ export function downloadCsv(path: string, token: string) {
   anchor.rel = "noopener";
   anchor.setAttribute("download", "");
   anchor.click();
+}
+
+export async function fetchAnalytics(token: string): Promise<AnalyticsSummary> {
+  const data = await request("/owner/analytics", {}, token);
+  return data.analytics;
 }

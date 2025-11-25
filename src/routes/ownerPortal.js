@@ -10,6 +10,7 @@ import { listServicesForTenantKey, updateTenant } from "../tenants/tenantManager
 import { validateOwnerServiceUpdate } from "../tenants/tenantValidation.js";
 import { ownerAuth, signOwnerToken } from "../middleware/ownerAuth.js";
 import { generateCustomersCsv, generateAppointmentsCsv } from "../services/csvExport.js";
+import { getOwnerAnalytics } from "../services/analyticsService.js";
 
 const router = express.Router();
 
@@ -88,6 +89,11 @@ router.get("/customers/:customerId", async (req, res) => {
 router.get("/services", async (req, res) => {
   const services = await listServicesForTenantKey(req.owner.tenantKey);
   res.json({ services });
+});
+
+router.get("/analytics", async (req, res) => {
+  const analytics = await getOwnerAnalytics(req.owner.tenantKey);
+  res.json({ analytics });
 });
 
 router.get("/exports/customers", async (req, res) => {

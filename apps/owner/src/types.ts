@@ -37,6 +37,13 @@ export interface CustomerDetail extends CustomerRecord {
   appointments?: Appointment[];
 }
 
+export interface AnalyticsSummary {
+  totalAppointments: number;
+  last30Appointments: number;
+  projectedRevenue: number;
+  upcomingBookings: number;
+}
+
 export interface ServiceRecord {
   id: string;
   name: string;

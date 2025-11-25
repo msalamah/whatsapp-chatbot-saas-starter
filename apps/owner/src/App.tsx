@@ -17,7 +17,7 @@ import { AppointmentsList } from "./components/AppointmentsList";
 import { CustomerList } from "./components/CustomerList";
 import { ServiceList } from "./components/ServiceList";
 import { CustomerDetailCard } from "./components/CustomerDetail";
-import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord, ServiceFormState, CustomerDetail } from "./types";
+import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord, ServiceFormState, CustomerDetail, AnalyticsSummary } from "./types";
 
 const TOKEN_KEY = "ownerPortalToken";
 const TENANT_NAME_KEY = "ownerPortalTenantName";
@@ -38,6 +38,7 @@ export default function App() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [services, setServices] = useState<ServiceRecord[]>([]);
+  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,16 +56,18 @@ export default function App() {
     if (!forceToken) return;
     setLoading(true);
     try {
-      const [pendingData, appointmentData, customersData, servicesData] = await Promise.all([
+      const [pendingData, appointmentData, customersData, servicesData, analyticsData] = await Promise.all([
         fetchPending(forceToken),
         fetchAppointments(forceToken, { limit: APPOINTMENT_LIMIT, range: appointmentRange }),
         fetchCustomers(forceToken, { limit: CUSTOMER_LIMIT, query: customerQuery }),
-        fetchServices(forceToken)
+        fetchServices(forceToken),
+        fetchAnalytics(forceToken)
       ]);
       setPending(pendingData);
       setAppointments(appointmentData);
       setCustomers(customersData);
       setServices(servicesData);
+      setAnalytics(analyticsData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to refresh data");
     } finally {
@@ -211,6 +214,7 @@ export default function App() {
           onReject={(id) => handleResolve(id, "reject")}
           refreshing={loading}
         />
+        <AnalyticsCards analytics={analytics} />
         <AppointmentsList items={appointments} />
         <CustomerList items={customers} onSelect={handleViewCustomer} />
         <ServiceList items={services} onSave={handleSaveService} onDelete={handleDeleteService} busy={loading} />
