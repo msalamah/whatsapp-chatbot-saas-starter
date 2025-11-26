@@ -6,6 +6,7 @@ import tenantRouter from "./routes/tenants.js";
 import ownerPortalRouter from "./routes/ownerPortal.js";
 import { adminAuth } from "./middleware/adminAuth.js";
 import { initializeDatabase } from "./db/client.js";
+import "./config/env.js";
 
 dotenv.config();
 await initializeDatabase();

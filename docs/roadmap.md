@@ -47,6 +47,6 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [ ] Self-serve onboarding + billing so customers can purchase the platform online
 
 ## Security & production readiness
-- [ ] Establish secret management strategy across environments
+- [~] Establish secret management strategy across environments
 - [x] Provide Dockerfile/compose (demo) and draft production deployment plan
-- [ ] Review compliance needs (data retention, privacy) before go-live
+- [~] Review compliance needs (data retention, privacy) before go-live

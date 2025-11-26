@@ -1,4 +1,3 @@
-import request from "supertest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "crypto";
 
@@ -8,6 +7,7 @@ vi.mock("../src/services/bookingService.js", () => ({
 
 import { handleIncomingChange } from "../src/services/bookingService.js";
 import { createApp } from "../src/app.js";
+import { httpRequest } from "./helpers/httpClient.js";
 
 describe("/webhook integration", () => {
   beforeEach(() => {
@@ -22,19 +22,19 @@ describe("/webhook integration", () => {
 
   it("returns challenge for GET verification", async () => {
     const app = createApp();
-    const res = await request(app)
-      .get("/webhook")
-      .query({ "hub.mode": "subscribe", "hub.verify_token": "token", "hub.challenge": "abc" })
-      .expect(200);
+    const res = await httpRequest(app, { path: "/webhook?hub.mode=subscribe&hub.verify_token=token&hub.challenge=abc" });
+    expect(res.status).toBe(200);
     expect(res.text).toBe("abc");
   });
 
   it("rejects invalid signature", async () => {
     const app = createApp();
-    await request(app)
-      .post("/webhook")
-      .send({ object: "whatsapp_business_account" })
-      .expect(403);
+    const res = await httpRequest(app, {
+      method: "POST",
+      path: "/webhook",
+      body: { object: "whatsapp_business_account" }
+    });
+    expect(res.status).toBe(403);
     expect(handleIncomingChange).not.toHaveBeenCalled();
   });
 
@@ -52,11 +52,13 @@ describe("/webhook integration", () => {
     const raw = JSON.stringify(payload);
     const signature = "sha256=" + crypto.createHmac("sha256", process.env.APP_SECRET).update(raw).digest("hex");
 
-    await request(app)
-      .post("/webhook")
-      .set("x-hub-signature-256", signature)
-      .send(payload)
-      .expect(200);
+    const res = await httpRequest(app, {
+      method: "POST",
+      path: "/webhook",
+      headers: { "x-hub-signature-256": signature },
+      body: payload
+    });
+    expect(res.status).toBe(200);
 
     expect(handleIncomingChange).toHaveBeenCalledTimes(1);
     expect(handleIncomingChange).toHaveBeenCalledWith(payload.entry[0].changes[0]);

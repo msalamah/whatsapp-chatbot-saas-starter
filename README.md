@@ -9,7 +9,7 @@ Multi-tenant WhatsApp Business webhook starter with calendar integration for sal
 # installs deps, creates .env, prints next steps
 ```
 
-1. **Configure secrets** – update `.env` with `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, `APP_SECRET` (if verifying signatures), `DATABASE_URL`, `ADMIN_API_KEYS`, `OWNER_JWT_SECRET`, and `OPENAI_API_KEY`.  
+1. **Configure secrets** – update `.env` with `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, `APP_SECRET` (if verifying signatures), `DATABASE_URL`, `ADMIN_API_KEYS`, `OWNER_JWT_SECRET`, `OPENAI_API_KEY`, plus retention knobs (`PENDING_RETENTION_HOURS`, `APPOINTMENT_RETENTION_DAYS`, `CUSTOMER_RETENTION_DAYS`).  
    • For local Postgres run `docker compose up db`. Default creds: `postgres://chatbot:chatbot@localhost:5432/chatbot`.
 2. **Start services** – `npm run dev` runs the webhook server/admin/owner APIs. Use `npm run admin:dev` in `apps/admin` to hack on the admin portal UI if needed.
 3. **Expose webhook** – `npx ngrok http 3000`, then in Meta App → WhatsApp → Configuration set:  
@@ -132,11 +132,17 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 - After connecting the sandbox, send “book” from your test WhatsApp number and confirm the bot replies with slot options.  
 - Review logs in the terminal for JSON lines structured by `src/utils/logger.js`.
 
+### Security & compliance
+
+- Follow the [Security & Compliance Guide](docs/security-and-compliance.md) for secret handling, tenant privacy expectations, and deployment checklists.
+- Run `npm run retention:prune` daily (or wire it into a CronJob) to purge stale pending bookings, historic appointments, and inactive customers according to your configured retention windows.
+
 ### Scripts
 
 - `scripts/bootstrap.sh` – installs dependencies, scaffolds `.env`, and prints setup checklist.
 - `npm run dev` – runs the Express webhook server on port 3000.
 - `npm run admin:dev` / `npm run admin:build` – run or bundle the React admin portal.
 - `npm run admin:bundle` – build and archive the admin portal into `apps/admin/dist.tar.gz`.
-- `npm test` – run the vitest unit suite (webhook verification, tenant validation, availability logic).
+- `npm run retention:prune` – executes the retention cleanup against the configured database.
+- `npm test` – run the vitest unit suite (webhook verification, tenant validation, availability logic, retention pruning).
 - GitHub Actions (`.github/workflows/ci.yml`) builds both backend and admin portal on pushes/PRs targeting `main` or `feature/roadmap-plan`.

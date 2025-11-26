@@ -9,7 +9,8 @@ import {
   upsertService,
   deleteService,
   fetchCustomerDetail,
-  downloadCsv
+  downloadCsv,
+  fetchAnalytics
 } from "./api";
 import { LoginForm } from "./components/LoginForm";
 import { PendingList } from "./components/PendingList";
@@ -17,6 +18,7 @@ import { AppointmentsList } from "./components/AppointmentsList";
 import { CustomerList } from "./components/CustomerList";
 import { ServiceList } from "./components/ServiceList";
 import { CustomerDetailCard } from "./components/CustomerDetail";
+import { AnalyticsCards } from "./components/AnalyticsCards";
 import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord, ServiceFormState, CustomerDetail, AnalyticsSummary } from "./types";
 
 const TOKEN_KEY = "ownerPortalToken";
