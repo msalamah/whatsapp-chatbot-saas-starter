@@ -12,6 +12,7 @@ import { savePendingBooking, getPendingBooking, deletePendingBooking } from "./p
 import { getAvailableSlots } from "./availabilityService.js";
 import { evaluateUserMessage } from "./conversationService.js";
 import { upsertCustomer } from "./customerStore.js";
+import { logMessage } from "./messageStore.js";
 
 const SLOT_PREFIX = "slot::";
 const LEGACY_SLOT_PREFIX = "slot_";
@@ -44,6 +45,11 @@ export async function handleIncomingChange(change) {
     if (!rawText) { await sendText(tenant.key, from, "Got it ✅"); continue; }
 
     await upsertCustomer({ id: from, tenantKey: tenant.key });
+    try {
+      await logMessage({ tenantKey: tenant.key, customerId: from, sender: "customer", text: rawText });
+    } catch {
+      // best-effort logging
+    }
 
     if (rawText.startsWith(SLOT_PREFIX) || rawText.startsWith(LEGACY_SLOT_PREFIX)) {
       await handleSlotSelection({ tenant, from, rawText, pendingData });

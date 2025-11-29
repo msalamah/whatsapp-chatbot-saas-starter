@@ -1,5 +1,6 @@
 import fetch from "node-fetch";
 import { getTenantByKey } from "../tenants/tenantManager.js";
+import { logMessage } from "./messageStore.js";
 
 async function resolveTenant(tenantKey) {
   const tenant = await getTenantByKey(tenantKey);
@@ -34,6 +35,14 @@ export async function sendMessage(tenantKey, payload) {
   if (!res.ok) {
     console.error("Send error:", data);
     throw new Error(JSON.stringify(data));
+  }
+  // Log outbound text messages for analytics (stateless conversation)
+  try {
+    if (payload.type === "text" && payload.to) {
+      await logMessage({ tenantKey, customerId: payload.to, sender: "bot", text: payload.text?.body || "" });
+    }
+  } catch {
+    // best-effort logging; do not block send
   }
   return data;
 }

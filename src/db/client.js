@@ -99,6 +99,29 @@ export async function initializeDatabase() {
     );
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id text PRIMARY KEY,
+      tenant_key text REFERENCES tenants(key) ON DELETE CASCADE,
+      customer_id text,
+      started_at timestamptz DEFAULT now(),
+      last_message_at timestamptz DEFAULT now()
+    );
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id text PRIMARY KEY,
+      conversation_id text REFERENCES conversations(id) ON DELETE CASCADE,
+      tenant_key text,
+      customer_id text,
+      sender text,
+      text text,
+      metadata jsonb,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+
   await seedDefaultTenants();
 }
 
