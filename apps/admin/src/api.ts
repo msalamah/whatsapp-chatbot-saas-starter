@@ -56,6 +56,14 @@ export async function rotateToken(creds: AdminCredentials, key: string, token: s
   return handleResponse(res);
 }
 
+export async function rotateOwnerToken(creds: AdminCredentials, key: string) {
+  const res = await fetch(new URL(`/tenants/${key}/owner-token`, creds.baseUrl).toString(), {
+    method: "POST",
+    headers: buildHeaders(creds, false)
+  });
+  return handleResponse(res);
+}
+
 export async function removeTenant(creds: AdminCredentials, key: string) {
   const res = await fetch(new URL(`/tenants/${key}`, creds.baseUrl).toString(), {
     method: "DELETE",

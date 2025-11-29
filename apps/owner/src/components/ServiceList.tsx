@@ -41,7 +41,6 @@ export function ServiceList({ items, busy = false, onSave, onDelete }: Props) {
   };
 
   const handleSubmit = (event: FormEvent) => {
-    event.prevent.Default?.();
     event.preventDefault();
     if (!editing) return;
     onSave(editing);

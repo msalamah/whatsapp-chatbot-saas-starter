@@ -5,7 +5,7 @@ import { TenantEditor } from "./components/TenantEditor";
 import { ActivityFeed } from "./components/ActivityFeed";
 import { PendingApprovals } from "./components/PendingApprovals";
 import { AdminCredentials, AuditEvent, PendingBooking, Tenant, TenantPayload } from "./types";
-import { approvePending, createTenant, fetchActivity, fetchPendingBookings, fetchTenants, patchTenant, rejectPending, removeTenant, rotateToken } from "./api";
+import { approvePending, createTenant, fetchActivity, fetchPendingBookings, fetchTenants, patchTenant, rejectPending, removeTenant, rotateOwnerToken, rotateToken } from "./api";
 
 interface Notification {
   type: "success" | "error";
@@ -191,6 +191,24 @@ export default function App() {
     }
   };
 
+  const handleRotateOwner = async (key: string) => {
+    if (!credentials) return "";
+    setLoading(true);
+    try {
+      const res = await rotateOwnerToken(credentials, key);
+      const token = res?.ownerToken || "";
+      notify({ type: "success", message: token ? `Rotated owner token for ${key}` : "Owner token rotation failed" });
+      refresh();
+      refreshActivity(false);
+      return token;
+    } catch (err) {
+      notify({ type: "error", message: extractError(err) });
+      return "";
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleDelete = async (tenant: Tenant) => {
     if (!credentials) return;
     if (!window.confirm(`Delete tenant "${tenant.displayName}"? This cannot be undone.`)) return;
@@ -301,6 +319,7 @@ export default function App() {
           onCreate={handleCreate}
           onUpdate={handleUpdate}
           onRotate={handleRotate}
+          onRotateOwner={handleRotateOwner}
         />
         {selectedTenant && (
           <PendingApprovals

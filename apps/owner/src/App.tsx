@@ -170,21 +170,21 @@ export default function App() {
 
   if (!isLoggedIn) {
     return (
-      <main className="app-container">
+      <main className="owner-page owner-login">
         <LoginForm onLogin={handleLogin} loading={loading} error={error} />
       </main>
     );
   }
 
   return (
-    <main className="app-container">
-      <div className="owner-card">
-        <header className="portal-header">
+    <main className="owner-page">
+      <div className="owner-shell">
+        <header className="owner-header">
           <div>
+            <p className="eyebrow">Manage your WhatsApp bookings</p>
             <h2>{tenant?.name}</h2>
-            <p className="muted">Manage your WhatsApp bookings</p>
           </div>
-          <div className="header-actions">
+          <div className="action-row">
             {tenant?.calendarLink && (
               <button onClick={() => window.open(tenant.calendarLink!, "_blank")}>
                 Open Calendar
@@ -195,31 +195,49 @@ export default function App() {
             <button className="ghost" onClick={handleLogout}>Logout</button>
           </div>
         </header>
-        <div className="filter-bar">
-          <label>
-            Search customers
+
+        <section className="controls">
+          <div className="control">
+            <label className="muted">Search customers</label>
             <input value={customerQuery} onChange={(e) => setCustomerQuery(e.target.value)} placeholder="Name or phone" />
-          </label>
-          <label>
-            Appointments
+          </div>
+          <div className="control">
+            <label className="muted">Appointments</label>
             <select value={appointmentRange} onChange={(e) => setAppointmentRange(e.target.value as "all" | "upcoming" | "past")}>
               <option value="upcoming">Upcoming</option>
               <option value="past">Past</option>
               <option value="all">All</option>
             </select>
-          </label>
-        </div>
+          </div>
+        </section>
+
         {error && <p className="error">{error}</p>}
-        <PendingList
-          items={pending}
-          onApprove={(id) => handleResolve(id, "approve")}
-          onReject={(id) => handleResolve(id, "reject")}
-          refreshing={loading}
-        />
-        <AnalyticsCards analytics={analytics} />
-        <AppointmentsList items={appointments} />
-        <CustomerList items={customers} onSelect={handleViewCustomer} />
-        <ServiceList items={services} onSave={handleSaveService} onDelete={handleDeleteService} busy={loading} />
+
+        <section className="section-card">
+          <AnalyticsCards analytics={analytics} />
+        </section>
+
+        <section className="grid-two">
+          <div className="section-card">
+            <PendingList
+              items={pending}
+              onApprove={(id) => handleResolve(id, "approve")}
+              onReject={(id) => handleResolve(id, "reject")}
+              refreshing={loading}
+            />
+          </div>
+          <div className="section-card">
+            <AppointmentsList items={appointments} />
+          </div>
+        </section>
+
+        <section className="section-card">
+          <CustomerList items={customers} onSelect={handleViewCustomer} />
+        </section>
+
+        <section className="section-card">
+          <ServiceList items={services} onSave={handleSaveService} onDelete={handleDeleteService} busy={loading} />
+        </section>
       </div>
       {customerDetail && <CustomerDetailCard detail={customerDetail} onClose={() => setCustomerDetail(null)} />}
     </main>

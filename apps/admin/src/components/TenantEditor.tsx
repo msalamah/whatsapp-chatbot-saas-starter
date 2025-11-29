@@ -6,6 +6,7 @@ interface Props {
   onCreate: (payload: TenantPayload) => Promise<void>;
   onUpdate: (key: string, payload: TenantPayload) => Promise<void>;
   onRotate: (key: string, token: string) => Promise<void>;
+  onRotateOwner: (key: string) => Promise<string>;
 }
 
 interface ServiceDraft {
@@ -106,19 +107,27 @@ function formToPayload(form: FormState): TenantPayload {
   };
 }
 
-export function TenantEditor({ selected, onCreate, onUpdate, onRotate }: Props) {
+export function TenantEditor({ selected, onCreate, onUpdate, onRotate, onRotateOwner }: Props) {
   const [form, setForm] = useState<FormState>(emptyState);
   const [rotationToken, setRotationToken] = useState("");
+  const [ownerTokenResult, setOwnerTokenResult] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string>(selected?.key || "");
   const isUpdate = Boolean(selected);
 
   useEffect(() => {
+    const nextKey = selected?.key || "";
     if (selected) {
       setForm(mapTenantToForm(selected));
     } else {
       setForm(emptyState());
     }
     setRotationToken("");
-  }, [selected]);
+    // Only clear the displayed owner token when switching tenants
+    if (nextKey !== selectedKey) {
+      setOwnerTokenResult(null);
+      setSelectedKey(nextKey);
+    }
+  }, [selected, selectedKey]);
 
   const headline = useMemo(() => (isUpdate ? "Tenant details" : "Add new tenant"), [isUpdate]);
 
@@ -169,6 +178,12 @@ export function TenantEditor({ selected, onCreate, onUpdate, onRotate }: Props) 
     if (!selected || !rotationToken.trim()) return;
     await onRotate(selected.key, rotationToken.trim());
     setRotationToken("");
+  };
+
+  const handleOwnerRotate = async () => {
+    if (!selected) return;
+    const token = await onRotateOwner(selected.key);
+    setOwnerTokenResult(token || "");
   };
 
   return (
@@ -355,6 +370,36 @@ export function TenantEditor({ selected, onCreate, onUpdate, onRotate }: Props) 
               <button type="button" onClick={handleRotate} disabled={!rotationToken.trim()}>
                 Rotate token
               </button>
+            </div>
+          </div>
+          <div className="panel" style={{ background: "rgba(8, 47, 73, 0.4)", border: "1px solid rgba(14, 165, 233, 0.15)" }}>
+            <div className="form-field">
+              <label>Rotate owner portal token</label>
+              <p className="muted">Generates a new owner portal token for this tenant.</p>
+            </div>
+            <div className="form-grid" style={{ gap: "0.75rem" }}>
+              <button type="button" onClick={handleOwnerRotate}>
+                Rotate owner token
+              </button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "0.5rem", alignItems: "center" }}>
+                <input
+                  readOnly
+                  value={ownerTokenResult || ""}
+                  placeholder="New owner token will appear here"
+                  style={{ width: "100%", fontFamily: "monospace" }}
+                  onFocus={(e) => e.currentTarget.select()}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (ownerTokenResult) navigator.clipboard?.writeText(ownerTokenResult);
+                  }}
+                  disabled={!ownerTokenResult}
+                  style={{ whiteSpace: "nowrap" }}
+                >
+                  Copy
+                </button>
+              </div>
             </div>
           </div>
         </div>

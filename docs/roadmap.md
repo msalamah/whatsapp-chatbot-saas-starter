@@ -48,5 +48,10 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 
 ## Security & production readiness
 - [~] Establish secret management strategy across environments
+  - [ ] Migrate environment secrets to a managed store (AWS Secrets Manager/SSM or similar)
+  - [ ] Automate WhatsApp/owner token rotation playbooks and documentation
 - [x] Provide Dockerfile/compose (demo) and draft production deployment plan
 - [~] Review compliance needs (data retention, privacy) before go-live
+  - [ ] Publish tenant-facing privacy/retention policy & onboarding checklist
+  - [ ] Schedule and monitor `npm run retention:prune` via CronJob or similar
+  - [ ] Implement centralized logging + alerting for webhook failures and approvals SLA

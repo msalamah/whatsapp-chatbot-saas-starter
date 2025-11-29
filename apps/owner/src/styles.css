@@ -1,21 +1,23 @@
 :root {
-  color-scheme: light dark;
+  color-scheme: only light;
   font-family: "Inter", system-ui, Helvetica, sans-serif;
-  --bg: #0f172a;
-  --card: rgba(15, 23, 42, 0.85);
-  --muted: #94a3b8;
-  --accent: #38bdf8;
-  --danger: #f87171;
+  --bg: #f4f7fb;
+  --card: #ffffff;
+  --muted: #5b6b7a;
+  --accent: #0ea5e9;
+  --danger: #ef4444;
+  --stroke: #e2e8f0;
+  --chip: #f1f5f9;
 }
 
 body {
   margin: 0;
-  background: radial-gradient(circle at top, #1e293b, #020617 65%);
-  color: #e2e8f0;
+  background: radial-gradient(circle at top, #e0f4ff 0%, #f4f7fb 40%, #e8ecf5 100%);
+  color: #0b1424;
   min-height: 100vh;
 }
 
-.app-container {
+.owner-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -23,14 +25,90 @@ body {
   padding: 2rem;
 }
 
-.owner-card, .owner-card form {
-  background: var(--card);
+.owner-shell {
+  width: min(1100px, 95vw);
+  background: #ffffff;
+  border-radius: 20px;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.15);
   padding: 1.75rem;
-  border-radius: 16px;
-  box-shadow: 0 20px 70px rgba(0, 0, 0, 0.35);
-  width: min(520px, 95%);
   display: flex;
   flex-direction: column;
+  gap: 1.25rem;
+  border: 1px solid var(--stroke);
+}
+
+.owner-header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 1rem;
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  color: #5b6b7a;
+}
+
+.owner-header h2 {
+  margin: 0;
+}
+
+.action-row {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.section-card {
+  background: #fdfefe;
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.control input,
+.control select {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke);
+  background: #f8fafc;
+  padding: 0 0.75rem;
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+
+.control select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, #475569 50%),
+    linear-gradient(135deg, #475569 50%, transparent 50%);
+  background-position: calc(100% - 18px) calc(50% - 3px), calc(100% - 12px) calc(50% - 3px);
+  background-size: 6px 6px;
+  background-repeat: no-repeat;
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 1rem;
 }
 
@@ -79,12 +157,13 @@ button.danger {
 }
 
 .card-list li {
-  background: rgba(15, 23, 42, 0.7);
+  background: var(--chip);
   border-radius: 12px;
-  padding: 0.8rem 1rem;
+  padding: 0.95rem 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  border: 1px solid var(--stroke);
 }
 
 .actions {
@@ -143,4 +222,46 @@ button.danger {
   border-radius: 12px;
   font-size: 0.8rem;
   overflow-x: auto;
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.analytics-card {
+  background: var(--chip);
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 0.95rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.owner-login {
+  align-items: center;
+  justify-content: center;
+}
+
+.owner-card {
+  background: var(--card);
+  border: 1px solid var(--stroke);
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, 0.15);
+  width: min(500px, 90vw);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.owner-card input {
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: #f8fafc;
+  padding: 0 0.75rem;
+  box-sizing: border-box;
 }

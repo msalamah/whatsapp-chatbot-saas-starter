@@ -14,15 +14,30 @@ await initializeDatabase();
 export function createApp() {
   const app = express();
 
-  const allowedOrigins = process.env.ADMIN_ALLOW_ORIGINS
+  const defaultOrigins = [
+    "http://localhost:5173",
+    "http://localhost:4173",
+    "http://localhost:5174",
+    "http://localhost:5175",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000"
+  ];
+  const envOrigins = process.env.ADMIN_ALLOW_ORIGINS
     ? process.env.ADMIN_ALLOW_ORIGINS.split(",").map((origin) => origin.trim()).filter(Boolean)
-    : ["http://localhost:5173", "http://localhost:4173", "http://localhost:5174"];
+    : [];
+  const allowedOrigins = Array.from(new Set([...defaultOrigins, ...envOrigins]));
 
   app.use(cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes("*") || allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
+      // allow same-origin and non-browser requests
+      if (!origin) return callback(null, true);
+      // wildcard allowance
+      if (allowedOrigins.includes("*")) return callback(null, true);
+      // exact match
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      // subdomain match when allowed origin starts with a dot (e.g. .example.com)
+      const subdomainAllowed = allowedOrigins.some((o) => o.startsWith(".") && origin.endsWith(o));
+      if (subdomainAllowed) return callback(null, true);
       return callback(new Error("Not allowed by CORS"));
     },
     credentials: false
@@ -35,6 +50,9 @@ export function createApp() {
       }
     }
   }));
+
+  // Serve built static assets (admin/owner bundles, public assets)
+  app.use(express.static("public"));
 
   app.use("/tenants", adminAuth, tenantRouter);
   app.use("/owner", ownerPortalRouter);

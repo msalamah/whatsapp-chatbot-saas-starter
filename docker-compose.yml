@@ -29,6 +29,18 @@ services:
       - backend
     restart: unless-stopped
 
+  owner:
+    build:
+      context: ./apps/owner
+      args:
+        VITE_API_BASE_URL: http://localhost:3000
+    container_name: salon-owner
+    ports:
+      - "5175:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   db:
     image: postgres:15-alpine
     container_name: salon-db

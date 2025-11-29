@@ -71,12 +71,25 @@ export async function fetchCustomerDetail(token: string, customerId: string) {
 
 export function downloadCsv(path: string, token: string) {
   const url = `${API_BASE}${path}`;
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.target = "_blank";
-  anchor.rel = "noopener";
-  anchor.setAttribute("download", "");
-  anchor.click();
+  fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    .then((res) => {
+      if (!res.ok) throw new Error(res.statusText);
+      return res.blob();
+    })
+    .then((blob) => {
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = path.includes("customers") ? "customers.csv" : "appointments.csv";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(href);
+    })
+    .catch((err) => {
+      // eslint-disable-next-line no-alert
+      alert(`Export failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+    });
 }
 
 export async function fetchAnalytics(token: string): Promise<AnalyticsSummary> {
