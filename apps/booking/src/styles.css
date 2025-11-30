@@ -1,0 +1,137 @@
+:root {
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  color: #0b1424;
+  background: radial-gradient(circle at 20% 20%, #e8f4ff 0%, #f5f7fb 45%, #eef2f7 100%);
+}
+
+body {
+  margin: 0;
+}
+
+.booking-shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.booking-header {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+}
+
+.eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  color: #5b6b7a;
+}
+
+h1 {
+  margin: 0.1rem 0;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.form-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.form-grid.two-col {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+label {
+  font-size: 0.9rem;
+  color: #475569;
+}
+
+input,
+select {
+  height: 42px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 0 0.75rem;
+  background: #f8fafc;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.section-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 0.75rem;
+}
+
+.slot {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+  padding: 0.8rem 0.9rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  cursor: pointer;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+.slot:hover {
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);
+  transform: translateY(-1px);
+}
+
+button.slot {
+  color: inherit;
+}
+
+.error {
+  color: #ef4444;
+  margin: 0;
+}
+
+.success {
+  color: #16a34a;
+  margin: 0;
+}
+
+.empty {
+  padding: 0.75rem;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  text-align: center;
+  color: #6b7280;
+}

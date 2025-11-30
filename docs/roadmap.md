@@ -48,9 +48,10 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [ ] Tenant-branded web booking app
   - [ ] Public tenant/services/availability endpoints (read-only)
   - [ ] Web booking flow (service picker, availability filtered by duration, contact form)
-  - [ ] Pending booking created with source metadata (web) for owner approval
+  - [x] Pending booking created with source metadata (web) for owner approval
   - [ ] Optional OTP login for customers (email/phone)
-  - [ ] Booking microsite built (apps/booking) and served under /book/:tenantKey or dedicated host
+  - [x] Booking microsite scaffolded (apps/booking) with service/availability fetch + booking submit
+  - [ ] Integrate OTP/auth if desired and refine UX
   - [ ] WhatsApp bot/link handoff to web booking and social links
 
 ## Security & production readiness

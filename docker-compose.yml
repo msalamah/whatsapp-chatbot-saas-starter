@@ -41,6 +41,18 @@ services:
       - backend
     restart: unless-stopped
 
+  booking:
+    build:
+      context: ./apps/booking
+      args:
+        VITE_PUBLIC_API_BASE_URL: http://localhost:3000
+    container_name: salon-booking
+    ports:
+      - "5180:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   db:
     image: postgres:15-alpine
     container_name: salon-db
