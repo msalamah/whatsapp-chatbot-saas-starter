@@ -18,21 +18,22 @@ export function TenantTable({ tenants, onSelect, onDelete, selectedKey }: Props)
   }
 
   return (
-    <table className="tenants-table">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Phone</th>
-          <th>Timezone</th>
+    <div className="table-scroll">
+      <table className="tenants-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th className="no-wrap">Phone</th>
+            <th className="no-wrap">Timezone</th>
           <th className="no-wrap">Services</th>
-          <th>Token</th>
+          <th className="no-wrap">Token</th>
           <th></th>
         </tr>
-      </thead>
-      <tbody>
-        {tenants.map((tenant) => (
-          <tr
-            key={tenant.key}
+        </thead>
+        <tbody>
+          {tenants.map((tenant) => (
+            <tr
+              key={tenant.key}
             style={{
               background: tenant.key === selectedKey ? "rgba(56, 189, 248, 0.15)" : undefined
             }}
@@ -41,10 +42,10 @@ export function TenantTable({ tenants, onSelect, onDelete, selectedKey }: Props)
               <strong>{tenant.displayName}</strong>
               <div className="muted">{tenant.key}</div>
             </td>
-            <td>{tenant.phoneNumberId || "—"}</td>
-            <td>{tenant.calendar?.timezone || "—"}</td>
+            <td><span className="truncate">{tenant.phoneNumberId || "—"}</span></td>
+            <td><span className="truncate">{tenant.calendar?.timezone || "—"}</span></td>
             <td>{tenant.services?.length ?? 0}</td>
-            <td>{tenant.wabaTokenPreview || "not set"}</td>
+            <td><span className="truncate">{tenant.wabaTokenPreview || "not set"}</span></td>
             <td>
               <div className="actions-row">
                 <button type="button" onClick={() => onSelect(tenant)}>
@@ -58,8 +59,9 @@ export function TenantTable({ tenants, onSelect, onDelete, selectedKey }: Props)
               </div>
             </td>
           </tr>
-        ))}
-      </tbody>
-    </table>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

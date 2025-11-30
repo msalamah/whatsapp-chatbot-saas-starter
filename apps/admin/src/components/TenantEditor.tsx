@@ -355,7 +355,7 @@ export function TenantEditor({ selected, onCreate, onUpdate, onRotate, onRotateO
       </form>
 
       {isUpdate && selected && (
-        <div className="panel" style={{ background: "rgba(8, 47, 73, 0.6)", border: "1px solid rgba(14, 165, 233, 0.2)" }}>
+        <div className="panel nested-light">
           <div className="form-grid two-col">
             <div className="form-field">
               <label>Rotate WhatsApp token</label>
@@ -372,7 +372,7 @@ export function TenantEditor({ selected, onCreate, onUpdate, onRotate, onRotateO
               </button>
             </div>
           </div>
-          <div className="panel" style={{ background: "rgba(8, 47, 73, 0.4)", border: "1px solid rgba(14, 165, 233, 0.15)" }}>
+          <div className="panel nested-light" style={{ gap: "0.5rem" }}>
             <div className="form-field">
               <label>Rotate owner portal token</label>
               <p className="muted">Generates a new owner portal token for this tenant.</p>
