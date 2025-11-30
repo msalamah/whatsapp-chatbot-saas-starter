@@ -4,6 +4,7 @@ import cors from "cors";
 import whatsappRouter from "./routes/whatsapp.js";
 import tenantRouter from "./routes/tenants.js";
 import ownerPortalRouter from "./routes/ownerPortal.js";
+import publicRouter from "./routes/publicBooking.js";
 import { adminAuth } from "./middleware/adminAuth.js";
 import { initializeDatabase } from "./db/client.js";
 import "./config/env.js";
@@ -56,6 +57,7 @@ export function createApp() {
 
   app.use("/tenants", adminAuth, tenantRouter);
   app.use("/owner", ownerPortalRouter);
+  app.use("/public", publicRouter);
   app.use("/", whatsappRouter);
 
   return app;

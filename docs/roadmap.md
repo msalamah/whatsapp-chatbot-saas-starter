@@ -45,6 +45,13 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [ ] Owner/operator dashboard (web) to monitor customers and bookings in real time
 - [ ] Product catalog & commerce workflows for businesses selling items
 - [ ] Self-serve onboarding + billing so customers can purchase the platform online
+- [ ] Tenant-branded web booking app
+  - [ ] Public tenant/services/availability endpoints (read-only)
+  - [ ] Web booking flow (service picker, availability filtered by duration, contact form)
+  - [ ] Pending booking created with source metadata (web) for owner approval
+  - [ ] Optional OTP login for customers (email/phone)
+  - [ ] Booking microsite built (apps/booking) and served under /book/:tenantKey or dedicated host
+  - [ ] WhatsApp bot/link handoff to web booking and social links
 
 ## Security & production readiness
 - [~] Establish secret management strategy across environments

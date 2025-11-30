@@ -79,10 +79,16 @@ export async function initializeDatabase() {
       service_currency text,
       service_description text,
       duration_minutes integer,
+      source text,
+      customer_name text,
+      customer_email text,
       data jsonb,
       updated_at timestamptz DEFAULT now()
     );
   `);
+  await query("ALTER TABLE pending_bookings ADD COLUMN IF NOT EXISTS source text");
+  await query("ALTER TABLE pending_bookings ADD COLUMN IF NOT EXISTS customer_name text");
+  await query("ALTER TABLE pending_bookings ADD COLUMN IF NOT EXISTS customer_email text");
 
   await query(`
     CREATE TABLE IF NOT EXISTS appointments (

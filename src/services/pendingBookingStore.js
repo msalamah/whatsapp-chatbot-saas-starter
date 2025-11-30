@@ -9,8 +9,9 @@ export async function savePendingBooking(customerId, payload) {
   await query(
     `INSERT INTO pending_bookings (
       customer_id, tenant_key, event_id, start_iso, end_iso, slot_label, time_zone,
-      service_id, service_name, service_price, service_currency, service_description, duration_minutes, data, updated_at
-    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
+      service_id, service_name, service_price, service_currency, service_description, duration_minutes,
+      source, customer_name, customer_email, data, updated_at
+    ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, now())
     ON CONFLICT (customer_id) DO UPDATE SET
       tenant_key = EXCLUDED.tenant_key,
       event_id = EXCLUDED.event_id,
@@ -24,6 +25,9 @@ export async function savePendingBooking(customerId, payload) {
       service_currency = EXCLUDED.service_currency,
       service_description = EXCLUDED.service_description,
       duration_minutes = EXCLUDED.duration_minutes,
+      source = EXCLUDED.source,
+      customer_name = EXCLUDED.customer_name,
+      customer_email = EXCLUDED.customer_email,
       data = EXCLUDED.data,
       updated_at = now()`,
     [
@@ -40,6 +44,9 @@ export async function savePendingBooking(customerId, payload) {
       payload.serviceCurrency,
       payload.serviceDescription,
       payload.durationMinutes,
+      payload.source || null,
+      payload.customerName || null,
+      payload.customerEmail || null,
       JSON.stringify(record)
     ]
   );
