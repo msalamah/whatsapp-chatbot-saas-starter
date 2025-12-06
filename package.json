@@ -21,9 +21,11 @@
     "jsonwebtoken": "^9.0.2",
     "luxon": "^3.7.2",
     "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.11",
     "openai": "^6.6.0",
     "pg": "^8.16.3",
     "pg-mem": "^3.0.5",
+    "twilio": "^5.10.7",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

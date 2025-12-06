@@ -20,6 +20,7 @@ export function createApp() {
     "http://localhost:4173",
     "http://localhost:5174",
     "http://localhost:5175",
+    "http://localhost:5180",
     "http://localhost:3000",
     "http://127.0.0.1:3000"
   ];
@@ -57,7 +58,8 @@ export function createApp() {
 
   app.use("/tenants", adminAuth, tenantRouter);
   app.use("/owner", ownerPortalRouter);
-  app.use("/public", publicRouter);
+  // Public booking APIs (CORS open)
+  app.use("/public", cors({ origin: true }), publicRouter);
   app.use("/", whatsappRouter);
 
   return app;

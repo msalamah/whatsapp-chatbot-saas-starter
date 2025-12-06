@@ -29,11 +29,28 @@ export async function fetchAvailability(key: string, serviceId?: string): Promis
   return data.slots || [];
 }
 
-export async function submitBooking(key: string, payload: { serviceId: string; startISO: string; endISO?: string; name?: string; email?: string; phone?: string }) {
+export async function submitBooking(key: string, payload: { serviceId: string; startISO: string; endISO?: string; name?: string; email?: string; phone?: string; otpToken?: string }) {
   const res = await request(`/public/tenants/${key}/book`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
   return res;
+}
+
+export async function requestOtp(tenantKey: string, contact: string, channel: string) {
+  return request(`/public/auth/request-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tenantKey, contact, channel })
+  });
+}
+
+export async function verifyOtp(tenantKey: string, contact: string, code: string): Promise<string> {
+  const res = await request(`/public/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ tenantKey, contact, code })
+  });
+  return res.token;
 }

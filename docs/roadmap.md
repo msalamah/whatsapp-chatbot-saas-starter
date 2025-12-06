@@ -46,12 +46,11 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [ ] Product catalog & commerce workflows for businesses selling items
 - [ ] Self-serve onboarding + billing so customers can purchase the platform online
 - [ ] Tenant-branded web booking app
-  - [ ] Public tenant/services/availability endpoints (read-only)
-  - [ ] Web booking flow (service picker, availability filtered by duration, contact form)
+  - [x] Public tenant/services/availability endpoints (read-only)
+  - [x] Web booking flow (service picker, multi-step, availability filtered by duration, contact form)
   - [x] Pending booking created with source metadata (web) for owner approval
-  - [ ] Optional OTP login for customers (email/phone)
-  - [x] Booking microsite scaffolded (apps/booking) with service/availability fetch + booking submit
-  - [ ] Integrate OTP/auth if desired and refine UX
+  - [x] OTP login (phone/email) with Twilio/SMS + SMTP hooks
+  - [ ] Polish booking UI/OTP delivery UX and add per-tenant branding
   - [ ] WhatsApp bot/link handoff to web booking and social links
 
 ## Security & production readiness

@@ -128,6 +128,21 @@ export async function initializeDatabase() {
     );
   `);
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS otps (
+      id text PRIMARY KEY,
+      tenant_key text,
+      contact text,
+      channel text,
+      code text,
+      token text,
+      verified boolean DEFAULT false,
+      expires_at timestamptz,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+  await query("ALTER TABLE otps ADD COLUMN IF NOT EXISTS channel text");
+
   await seedDefaultTenants();
 }
 

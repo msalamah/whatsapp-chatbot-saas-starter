@@ -23,6 +23,10 @@ body {
   border-radius: 16px;
   padding: 1.25rem 1.5rem;
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
 }
 
 .eyebrow {
@@ -109,13 +113,73 @@ select {
   transition: box-shadow 120ms ease, transform 120ms ease;
 }
 
+.slot.active {
+  border-color: #0ea5e9;
+  box-shadow: 0 10px 25px rgba(14, 165, 233, 0.25);
+}
+
 .slot:hover {
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);
   transform: translateY(-1px);
 }
 
-button.slot {
-  color: inherit;
+.stepper {
+  list-style: none;
+  display: flex;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.stepper li {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.bubble {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.8rem;
+}
+
+.stepper li.active .bubble {
+  border-color: #0ea5e9;
+  background: #e0f2fe;
+  color: #0369a1;
+}
+
+.stepper li.done .bubble {
+  border-color: #22c55e;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.primary {
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+.ghost {
+  border: 1px solid #e2e8f0;
+  background: transparent;
+  color: #0b1424;
+  border-radius: 10px;
+  padding: 0.6rem 0.9rem;
+  cursor: pointer;
 }
 
 .error {
@@ -134,4 +198,33 @@ button.slot {
   border-radius: 10px;
   text-align: center;
   color: #6b7280;
+}
+
+.summary {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.otp-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.channel-select {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.channel-select input {
+  width: auto;
+  height: auto;
 }
