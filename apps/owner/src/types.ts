@@ -4,10 +4,36 @@ export interface TenantInfo {
   calendarLink?: string | null;
 }
 
+export interface CalendarRule {
+  id?: string;
+  dayOfWeek: number;
+  start: string;
+  end: string;
+  capacity?: number | null;
+}
+
+export interface CalendarBlock {
+  id?: string;
+  startISO: string;
+  endISO: string;
+  reason?: string;
+}
+
+export interface OwnerCalendar {
+  timezone: string;
+  capacity: number;
+  lookaheadDays: number;
+  rules: CalendarRule[];
+  blocks: CalendarBlock[];
+}
+
 export interface PendingBooking {
   customerId: string;
   serviceName?: string;
   slotLabel?: string;
+  startISO?: string;
+  endISO?: string;
+  timeZone?: string;
 }
 
 export interface Appointment {
@@ -15,6 +41,7 @@ export interface Appointment {
   service_name?: string;
   slot_label?: string;
   start_iso?: string;
+  end_iso?: string;
 }
 
 export interface OwnerCredentials {

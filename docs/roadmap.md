@@ -18,11 +18,13 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [x] Introduce managed database for tenants, customers, and booking history (replace local JSON stores)
 
 ## Admin web experience
-- [~] Ship React/Vite admin portal for tenant management (initial release live; polish UX & analytics)
+- [x] Ship React/Vite admin portal for tenant management (initial release live; polish UX & analytics)
 - [~] Add secure auth & role management for the admin portal (actor/role headers in place, expand enforcement later)
 - [x] Integrate audit logging and activity timeline in admin UI
 - [x] Deliver deployment bundle and automated build pipeline for the admin app
 - [x] Ship owner-facing approval UI (pending bookings dashboard + approve/reject flows)
+  - [x] Replace custom calendar timeline with React Big Calendar (day/week/month, timezone-aware, event detail chips)
+  - [x] Refresh owner/admin styling for responsive layouts and readable cards
 
 ## Testing & quality gates
 - [x] Add unit tests for webhook verification, booking flow, and services
@@ -52,6 +54,13 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
   - [x] OTP login (phone/email) with Twilio/SMS + SMTP hooks
   - [ ] Polish booking UI/OTP delivery UX and add per-tenant branding
   - [ ] WhatsApp bot/link handoff to web booking and social links
+- [ ] Internal calendar
+  - [x] Schema & API for working hours, breaks, capacity per tenant
+  - [x] Admin UI to configure calendar (working days, breaks, capacity)
+  - [x] Owner portal calendar editor (owners manage working hours/breaks themselves)
+  - [x] Availability engine uses internal calendar instead of Google
+  - [x] Booking web app supports date-range filters using internal calendar availability
+  - [x] Unified React Big Calendar views across admin, owner, and booking apps (week/day/month, scrollable hours, timezone chip, event chips)
 
 ## Security & production readiness
 - [~] Establish secret management strategy across environments

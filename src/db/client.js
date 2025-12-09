@@ -143,6 +143,40 @@ export async function initializeDatabase() {
   `);
   await query("ALTER TABLE otps ADD COLUMN IF NOT EXISTS channel text");
 
+  await query(`
+    CREATE TABLE IF NOT EXISTS calendars (
+      tenant_key text PRIMARY KEY REFERENCES tenants(key) ON DELETE CASCADE,
+      timezone text DEFAULT 'UTC',
+      capacity integer DEFAULT 1,
+      lookahead_days integer DEFAULT 30,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now()
+    );
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS calendar_rules (
+      id text PRIMARY KEY,
+      tenant_key text REFERENCES tenants(key) ON DELETE CASCADE,
+      day_of_week integer,
+      start_time text,
+      end_time text,
+      capacity integer,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS calendar_blocks (
+      id text PRIMARY KEY,
+      tenant_key text REFERENCES tenants(key) ON DELETE CASCADE,
+      start_iso timestamptz,
+      end_iso timestamptz,
+      reason text,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+
   await seedDefaultTenants();
 }
 

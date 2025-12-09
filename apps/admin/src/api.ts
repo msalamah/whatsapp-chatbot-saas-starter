@@ -1,4 +1,4 @@
-import { AdminCredentials, AuditEvent, PendingBooking, Tenant, TenantPayload } from "./types";
+import { AdminCredentials, AppointmentRecord, AuditEvent, CalendarBlock, CalendarRule, InternalCalendar, PendingBooking, Tenant, TenantPayload } from "./types";
 
 function buildHeaders(creds: AdminCredentials, isJson = true) {
   const headers: Record<string, string> = {
@@ -90,12 +90,66 @@ export async function fetchPendingBookings(creds: AdminCredentials, tenantKey: s
   return data.pending || [];
 }
 
+export async function fetchTenantAppointments(
+  creds: AdminCredentials,
+  tenantKey: string,
+  options: { limit?: number; from?: string; to?: string } = {}
+): Promise<AppointmentRecord[]> {
+  const url = new URL(`/tenants/${tenantKey}/appointments`, creds.baseUrl);
+  if (options.limit) url.searchParams.set("limit", String(options.limit));
+  if (options.from) url.searchParams.set("from", options.from);
+  if (options.to) url.searchParams.set("to", options.to);
+  const res = await fetch(url.toString(), {
+    headers: buildHeaders(creds, false)
+  });
+  const data = await handleResponse(res);
+  return data.appointments || [];
+}
+
 export async function approvePending(creds: AdminCredentials, tenantKey: string, customerId: string) {
   const res = await fetch(new URL(`/tenants/${tenantKey}/pending-bookings/${customerId}/approve`, creds.baseUrl).toString(), {
     method: "POST",
     headers: buildHeaders(creds)
   });
   return handleResponse(res);
+}
+
+function defaultCalendar(): InternalCalendar {
+  return {
+    timezone: "UTC",
+    capacity: 1,
+    lookaheadDays: 30,
+    rules: [],
+    blocks: []
+  };
+}
+
+export async function fetchCalendarConfig(creds: AdminCredentials, tenantKey: string): Promise<InternalCalendar> {
+  const res = await fetch(new URL(`/tenants/${tenantKey}/calendar`, creds.baseUrl).toString(), {
+    headers: buildHeaders(creds, false)
+  });
+  if (res.status === 404) {
+    return defaultCalendar();
+  }
+  const data = await handleResponse(res);
+  return data?.calendar || defaultCalendar();
+}
+
+export async function updateCalendarConfig(
+  creds: AdminCredentials,
+  tenantKey: string,
+  payload: Partial<Omit<InternalCalendar, "rules" | "blocks">> & {
+    rules?: CalendarRule[];
+    blocks?: CalendarBlock[];
+  }
+): Promise<InternalCalendar> {
+  const res = await fetch(new URL(`/tenants/${tenantKey}/calendar`, creds.baseUrl).toString(), {
+    method: "PUT",
+    headers: buildHeaders(creds),
+    body: JSON.stringify(payload)
+  });
+  const data = await handleResponse(res);
+  return data?.calendar || defaultCalendar();
 }
 
 export async function rejectPending(creds: AdminCredentials, tenantKey: string, customerId: string) {

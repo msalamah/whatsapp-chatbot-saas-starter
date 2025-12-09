@@ -7,6 +7,7 @@ import { upsertCustomer } from "../src/services/customerStore.js";
 import { savePendingBooking } from "../src/services/pendingBookingStore.js";
 import { createAppointment } from "../src/services/appointmentStore.js";
 import { getTenantByKey } from "../src/tenants/tenantManager.js";
+import { upsertCalendar } from "../src/services/calendarService.js";
 
 const tenantKey = process.argv[2] || process.env.SEED_TENANT_KEY || "default";
 const databaseUrl = process.env.DATABASE_URL;
@@ -26,6 +27,27 @@ async function seed() {
 
   const now = new Date();
   const tz = tenant.calendar?.timezone || "UTC";
+
+  // ensure internal calendar rules exist so owner portal/calendar editor demos look populated
+  await upsertCalendar(tenantKey, {
+    timezone: tz,
+    capacity: 2,
+    lookaheadDays: 14,
+    rules: [
+      { dayOfWeek: 1, start: "09:00", end: "18:00", capacity: 2 },
+      { dayOfWeek: 2, start: "09:00", end: "18:00", capacity: 2 },
+      { dayOfWeek: 3, start: "09:00", end: "18:00", capacity: 2 },
+      { dayOfWeek: 4, start: "09:00", end: "18:00", capacity: 2 },
+      { dayOfWeek: 5, start: "09:00", end: "16:00", capacity: 1 }
+    ],
+    blocks: [
+      {
+        startISO: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString(),
+        endISO: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000).toISOString(),
+        reason: "Team training"
+      }
+    ]
+  });
 
   // customers
   const customers = [

@@ -8,11 +8,13 @@ import {
   rotateOwnerPortalToken,
   deleteTenant
 } from "../tenants/tenantManager.js";
+import { getCalendar, upsertCalendar } from "../services/calendarService.js";
 import { validateTenantCreate, validateTenantUpdate, validateTokenRotation } from "../tenants/tenantValidation.js";
 import { logger } from "../utils/logger.js";
 import { appendActivity, listActivities } from "../services/adminActivityStore.js";
 import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
+import { listAppointmentsForTenant } from "../services/appointmentStore.js";
 
 const router = express.Router();
 
@@ -83,6 +85,21 @@ router.get("/:key/pending-bookings", async (req, res) => {
   } catch (err) {
     logger.error("Failed to list pending bookings", "tenant-admin", { error: err.message });
     return res.status(500).json({ error: "Failed to list pending bookings" });
+  }
+});
+
+router.get("/:key/appointments", async (req, res) => {
+  try {
+    const limit = Number(req.query.limit) || 200;
+    const fromParam = req.query.from ? new Date(String(req.query.from)) : null;
+    const toParam = req.query.to ? new Date(String(req.query.to)) : null;
+    const from = fromParam && !isNaN(fromParam.getTime()) ? fromParam.toISOString() : null;
+    const to = toParam && !isNaN(toParam.getTime()) ? toParam.toISOString() : null;
+    const appointments = await listAppointmentsForTenant(req.params.key, { limit, from, to });
+    return res.json({ appointments });
+  } catch (err) {
+    logger.error("Failed to list appointments", "tenant-admin", { error: err.message });
+    return res.status(500).json({ error: "Failed to list appointments" });
   }
 });
 
@@ -210,6 +227,30 @@ router.post("/:key/owner-token", async (req, res) => {
       return res.status(404).json({ error: err.message });
     }
     return res.status(400).json({ error: err.message });
+  }
+});
+
+router.get("/:key/calendar", async (req, res) => {
+  try {
+    const calendar = await getCalendar(req.params.key);
+    if (!calendar) return res.status(404).json({ error: "Tenant not found" });
+    return res.json({ calendar });
+  } catch (err) {
+    logger.error("Failed to load calendar", "tenant-admin", { tenantKey: req.params.key, error: err.message });
+    return res.status(500).json({ error: "Failed to load calendar" });
+  }
+});
+
+router.put("/:key/calendar", async (req, res) => {
+  const actor = resolveActor(req);
+  const role = resolveRole(req);
+  try {
+    const calendar = await upsertCalendar(req.params.key, req.body || {});
+    recordActivity("calendar.updated", { actor, role, tenantKey: req.params.key, details: { rules: calendar.rules.length, blocks: calendar.blocks.length } });
+    return res.json({ calendar });
+  } catch (err) {
+    logger.error("Failed to update calendar", "tenant-admin", { tenantKey: req.params.key, error: err.message });
+    return res.status(400).json({ error: err.message || "Failed to update calendar" });
   }
 });
 

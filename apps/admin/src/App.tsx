@@ -4,8 +4,9 @@ import { TenantTable } from "./components/TenantTable";
 import { TenantEditor } from "./components/TenantEditor";
 import { ActivityFeed } from "./components/ActivityFeed";
 import { PendingApprovals } from "./components/PendingApprovals";
-import { AdminCredentials, AuditEvent, PendingBooking, Tenant, TenantPayload } from "./types";
-import { approvePending, createTenant, fetchActivity, fetchPendingBookings, fetchTenants, patchTenant, rejectPending, removeTenant, rotateOwnerToken, rotateToken } from "./api";
+import { CalendarEditor } from "./components/CalendarEditor";
+import { AdminCredentials, AppointmentRecord, AuditEvent, PendingBooking, Tenant, TenantPayload } from "./types";
+import { approvePending, createTenant, fetchActivity, fetchPendingBookings, fetchTenants, fetchTenantAppointments, patchTenant, rejectPending, removeTenant, rotateOwnerToken, rotateToken } from "./api";
 
 interface Notification {
   type: "success" | "error";
@@ -52,6 +53,7 @@ export default function App() {
   const [activityLoading, setActivityLoading] = useState(false);
   const [pendingBookings, setPendingBookings] = useState<PendingBooking[]>([]);
   const [pendingLoading, setPendingLoading] = useState(false);
+  const [appointments, setAppointments] = useState<AppointmentRecord[]>([]);
 
   const connected = Boolean(credentials);
 
@@ -93,9 +95,11 @@ export default function App() {
   useEffect(() => {
     if (!credentials || !selectedTenant) {
       setPendingBookings([]);
+      setAppointments([]);
       return;
     }
     loadPending(selectedTenant.key);
+    loadAppointments(selectedTenant.key);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [credentials, selectedTenant]);
 
@@ -146,6 +150,13 @@ export default function App() {
       .finally(() => setPendingLoading(false));
   };
 
+  const loadAppointments = (tenantKey: string) => {
+    if (!credentials) return;
+    fetchTenantAppointments(credentials, tenantKey, { limit: 200 })
+      .then((list) => setAppointments(list))
+      .catch((err) => notify({ type: "error", message: extractError(err) }));
+  };
+
   const handleCreate = async (payload: TenantPayload) => {
     if (!credentials) return;
     setLoading(true);
@@ -183,6 +194,7 @@ export default function App() {
       await rotateToken(credentials, key, token);
       notify({ type: "success", message: `Rotated token for ${key}` });
       refresh();
+      loadAppointments(key);
       refreshActivity(false);
     } catch (err) {
       notify({ type: "error", message: extractError(err) });
@@ -199,6 +211,7 @@ export default function App() {
       const token = res?.ownerToken || "";
       notify({ type: "success", message: token ? `Rotated owner token for ${key}` : "Owner token rotation failed" });
       refresh();
+      loadAppointments(key);
       refreshActivity(false);
       return token;
     } catch (err) {
@@ -238,6 +251,7 @@ export default function App() {
       await approvePending(credentials, selectedTenant.key, customerId);
       notify({ type: "success", message: "Booking approved" });
       loadPending(selectedTenant.key);
+      loadAppointments(selectedTenant.key);
       refreshActivity(false);
     } catch (err) {
       notify({ type: "error", message: extractError(err) });
@@ -253,6 +267,7 @@ export default function App() {
       await rejectPending(credentials, selectedTenant.key, customerId);
       notify({ type: "success", message: "Booking rejected" });
       loadPending(selectedTenant.key);
+      loadAppointments(selectedTenant.key);
       refreshActivity(false);
     } catch (err) {
       notify({ type: "error", message: extractError(err) });
@@ -282,63 +297,81 @@ export default function App() {
           connected={connected}
         />
       </header>
-      <main className="main">
-        <section className="panel">
-          <div className="status-bar">
-            <div>
-              <strong>{summary}</strong>
-              {loading && <span style={{ marginLeft: "0.75rem" }}>Loading…</span>}
+      <main className="main split-layout">
+        <div className="column primary-column">
+          <section className="panel scroll-panel">
+            <div className="status-bar">
+              <div>
+                <strong>{summary}</strong>
+                {loading && <span style={{ marginLeft: "0.75rem" }}>Loading…</span>}
+              </div>
+              <div className="actions-row">
+                <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                  <input
+                    type="checkbox"
+                    checked={showSensitive}
+                    onChange={(e) => setShowSensitive(e.target.checked)}
+                    disabled={!connected}
+                  />
+                  Show raw tokens
+                </label>
+                <button type="button" onClick={refresh} disabled={!connected || loading}>
+                  Refresh
+                </button>
+                <button type="button" onClick={() => refreshActivity()} disabled={!connected || activityLoading}>
+                  Activity
+                </button>
+              </div>
             </div>
-            <div className="actions-row">
-              <label style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-                <input
-                  type="checkbox"
-                  checked={showSensitive}
-                  onChange={(e) => setShowSensitive(e.target.checked)}
-                  disabled={!connected}
-                />
-                Show raw tokens
-              </label>
-              <button type="button" onClick={refresh} disabled={!connected || loading}>
-                Refresh
-              </button>
-              <button type="button" onClick={() => refreshActivity()} disabled={!connected || activityLoading}>
-                Activity
-              </button>
-            </div>
-          </div>
-          <TenantTable
-            tenants={tenants}
-            selectedKey={selectedTenant?.key}
-            onSelect={(tenant) => setSelectedTenant(tenant)}
-            onDelete={handleDelete}
-          />
-        </section>
-        <TenantEditor
-          selected={selectedTenant}
-          onCreate={handleCreate}
-          onUpdate={handleUpdate}
-          onRotate={handleRotate}
-          onRotateOwner={handleRotateOwner}
-        />
-        {selectedTenant && (
-          <PendingApprovals
-            tenantName={selectedTenant.displayName}
-            bookings={pendingBookings}
-            loading={pendingLoading}
-            onRefresh={() => loadPending(selectedTenant.key)}
-            onApprove={handleApprovePending}
-            onReject={handleRejectPending}
-          />
-        )}
-        <section className="panel activity-panel">
-          <div className="status-bar">
-            <h2>Audit trail</h2>
-            {activityLoading && <span>Updating…</span>}
-          </div>
-          <ActivityFeed events={activity} />
-        </section>
+            <TenantTable
+              tenants={tenants}
+              selectedKey={selectedTenant?.key}
+              onSelect={(tenant) => setSelectedTenant(tenant)}
+              onDelete={handleDelete}
+            />
+          </section>
+          {selectedTenant && (
+            <section className="panel scroll-panel compact-panel">
+              <PendingApprovals
+                tenantName={selectedTenant.displayName}
+                bookings={pendingBookings}
+                loading={pendingLoading}
+                onRefresh={() => loadPending(selectedTenant.key)}
+                onApprove={handleApprovePending}
+                onReject={handleRejectPending}
+              />
+            </section>
+          )}
+        </div>
+        <div className="column secondary-column">
+          <section className="panel detail-panel">
+            <TenantEditor
+              selected={selectedTenant}
+              onCreate={handleCreate}
+              onUpdate={handleUpdate}
+              onRotate={handleRotate}
+              onRotateOwner={handleRotateOwner}
+            />
+          </section>
+        </div>
       </main>
+      <section className="panel calendar-panel wide-panel">
+        <CalendarEditor
+          credentials={credentials}
+          tenantKey={selectedTenant?.key || null}
+          tenantName={selectedTenant?.displayName}
+          notify={notify}
+          appointments={appointments}
+          pending={pendingBookings}
+        />
+      </section>
+      <section className="panel activity-panel">
+        <div className="status-bar">
+          <h2>Audit trail</h2>
+          {activityLoading && <span>Updating…</span>}
+        </div>
+        <ActivityFeed events={activity} />
+      </section>
     </div>
   );
 }

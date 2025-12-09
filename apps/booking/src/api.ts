@@ -21,9 +21,16 @@ export async function fetchServices(key: string): Promise<Service[]> {
   return data.services || [];
 }
 
-export async function fetchAvailability(key: string, serviceId?: string): Promise<Slot[]> {
+export async function fetchAvailability(
+  key: string,
+  serviceId?: string,
+  options: { from?: string; to?: string; windowDays?: number } = {}
+): Promise<Slot[]> {
   const params = new URLSearchParams();
   if (serviceId) params.set("serviceId", serviceId);
+  if (options.from) params.set("from", options.from);
+  if (options.to) params.set("to", options.to);
+  if (options.windowDays) params.set("windowDays", String(options.windowDays));
   const qs = params.toString() ? `?${params.toString()}` : "";
   const data = await request(`/public/tenants/${key}/availability${qs}`);
   return data.slots || [];

@@ -27,9 +27,16 @@ router.get("/tenants/:key/availability", async (req, res) => {
   const serviceId = req.query.serviceId || null;
   const service = serviceId ? getServiceById(tenant, serviceId) : null;
   const durationMinutes = service?.minMinutes || tenant.calendar?.slotDurationMinutes || 45;
-  const windowDays = Number(req.query.windowDays || 5);
+  const windowDays = req.query.windowDays ? Number(req.query.windowDays) : undefined;
+  const from = req.query.from ? String(req.query.from) : undefined;
+  const to = req.query.to ? String(req.query.to) : undefined;
   try {
-    const slots = await getAvailableSlots(tenant, { windowDays, durationMinutes });
+    const slots = await getAvailableSlots(tenant, {
+      windowDays,
+      durationMinutes,
+      from,
+      to
+    });
     return res.json({ slots });
   } catch (err) {
     return res.status(500).json({ error: "Failed to fetch availability" });

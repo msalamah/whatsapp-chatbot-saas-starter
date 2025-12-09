@@ -11,6 +11,7 @@ import { validateOwnerServiceUpdate } from "../tenants/tenantValidation.js";
 import { ownerAuth, signOwnerToken } from "../middleware/ownerAuth.js";
 import { generateCustomersCsv, generateAppointmentsCsv } from "../services/csvExport.js";
 import { getOwnerAnalytics } from "../services/analyticsService.js";
+import { getCalendar, upsertCalendar } from "../services/calendarService.js";
 
 const router = express.Router();
 
@@ -21,6 +22,50 @@ function buildCalendarLink(tenant) {
   if (!tenant?.calendar?.calendarId) return null;
   const encoded = encodeURIComponent(tenant.calendar.calendarId);
   return `https://calendar.google.com/calendar/u/0/r?cid=${encoded}`;
+}
+
+function normalizeCalendarPayload(payload = {}) {
+  const timezone = String(payload.timezone || "UTC").trim() || "UTC";
+  const capacity = Number(payload.capacity ?? 1);
+  const lookaheadDays = Number(payload.lookaheadDays ?? 30);
+  const rules = Array.isArray(payload.rules)
+    ? payload.rules.map((rule) => {
+        const day = Number(rule.dayOfWeek);
+        if (!Number.isInteger(day) || day < 0 || day > 6) {
+          throw new Error("dayOfWeek must be between 0 and 6");
+        }
+        const start = String(rule.start || "").trim();
+        const end = String(rule.end || "").trim();
+        if (!start || !end) {
+          throw new Error("Working hours must include start and end");
+        }
+        let ruleCapacity = null;
+        if (rule.capacity !== undefined && rule.capacity !== null && rule.capacity !== "") {
+          const parsed = Number(rule.capacity);
+          if (!Number.isFinite(parsed) || parsed < 1) {
+            throw new Error("Capacity override must be a positive number");
+          }
+          ruleCapacity = parsed;
+        }
+        return { dayOfWeek: day, start, end, capacity: ruleCapacity };
+      })
+    : [];
+  const blocks = Array.isArray(payload.blocks)
+    ? payload.blocks
+        .filter((block) => block?.startISO && block?.endISO)
+        .map((block) => ({
+          startISO: String(block.startISO),
+          endISO: String(block.endISO),
+          reason: block.reason ? String(block.reason).slice(0, 120) : null
+        }))
+    : [];
+  return {
+    timezone,
+    capacity: Number.isFinite(capacity) && capacity > 0 ? capacity : 1,
+    lookaheadDays: Number.isFinite(lookaheadDays) && lookaheadDays > 0 ? lookaheadDays : 30,
+    rules,
+    blocks
+  };
 }
 
 router.post("/login", async (req, res) => {
@@ -94,6 +139,21 @@ router.get("/services", async (req, res) => {
 router.get("/analytics", async (req, res) => {
   const analytics = await getOwnerAnalytics(req.owner.tenantKey);
   res.json({ analytics });
+});
+
+router.get("/calendar", async (req, res) => {
+  const calendar = await getCalendar(req.owner.tenantKey);
+  res.json({ calendar });
+});
+
+router.put("/calendar", async (req, res) => {
+  try {
+    const payload = normalizeCalendarPayload(req.body || {});
+    const calendar = await upsertCalendar(req.owner.tenantKey, payload);
+    res.json({ calendar });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Failed to update calendar" });
+  }
 });
 
 router.get("/exports/customers", async (req, res) => {

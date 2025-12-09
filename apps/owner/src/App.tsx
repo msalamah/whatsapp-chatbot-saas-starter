@@ -10,7 +10,9 @@ import {
   deleteService,
   fetchCustomerDetail,
   downloadCsv,
-  fetchAnalytics
+  fetchAnalytics,
+  fetchCalendarSettings,
+  saveCalendarSettings
 } from "./api";
 import { LoginForm } from "./components/LoginForm";
 import { PendingList } from "./components/PendingList";
@@ -19,7 +21,19 @@ import { CustomerList } from "./components/CustomerList";
 import { ServiceList } from "./components/ServiceList";
 import { CustomerDetailCard } from "./components/CustomerDetail";
 import { AnalyticsCards } from "./components/AnalyticsCards";
-import { PendingBooking, Appointment, TenantInfo, CustomerRecord, ServiceRecord, ServiceFormState, CustomerDetail, AnalyticsSummary } from "./types";
+import { CalendarBoard } from "./components/CalendarBoard";
+import {
+  PendingBooking,
+  Appointment,
+  TenantInfo,
+  CustomerRecord,
+  ServiceRecord,
+  ServiceFormState,
+  CustomerDetail,
+  AnalyticsSummary,
+  OwnerCalendar
+} from "./types";
+import { CalendarSettings } from "./components/CalendarSettings";
 
 const TOKEN_KEY = "ownerPortalToken";
 const TENANT_NAME_KEY = "ownerPortalTenantName";
@@ -42,10 +56,12 @@ export default function App() {
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
+  const [calendar, setCalendar] = useState<OwnerCalendar | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
   const [appointmentRange, setAppointmentRange] = useState<"all" | "upcoming" | "past">("upcoming");
+  const [calendarSaving, setCalendarSaving] = useState(false);
 
   const isLoggedIn = Boolean(token && tenant);
 
@@ -58,18 +74,20 @@ export default function App() {
     if (!forceToken) return;
     setLoading(true);
     try {
-      const [pendingData, appointmentData, customersData, servicesData, analyticsData] = await Promise.all([
+      const [pendingData, appointmentData, customersData, servicesData, analyticsData, calendarData] = await Promise.all([
         fetchPending(forceToken),
         fetchAppointments(forceToken, { limit: APPOINTMENT_LIMIT, range: appointmentRange }),
         fetchCustomers(forceToken, { limit: CUSTOMER_LIMIT, query: customerQuery }),
         fetchServices(forceToken),
-        fetchAnalytics(forceToken)
+        fetchAnalytics(forceToken),
+        fetchCalendarSettings(forceToken)
       ]);
       setPending(pendingData);
       setAppointments(appointmentData);
       setCustomers(customersData);
       setServices(servicesData);
       setAnalytics(analyticsData);
+      setCalendar(calendarData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to refresh data");
     } finally {
@@ -154,6 +172,20 @@ export default function App() {
     }
   }
 
+  async function handleSaveCalendar(nextCalendar: OwnerCalendar) {
+    if (!token) return;
+    setCalendarSaving(true);
+    try {
+      const saved = await saveCalendarSettings(token, nextCalendar);
+      setCalendar(saved);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save calendar");
+    } finally {
+      setCalendarSaving(false);
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(TENANT_KEY_KEY);
@@ -217,6 +249,11 @@ export default function App() {
           <AnalyticsCards analytics={analytics} />
         </section>
 
+        <section className="section-card">
+          <h3 style={{ marginTop: 0 }}>Calendar</h3>
+          <CalendarBoard timezone={calendar?.timezone || "UTC"} appointments={appointments} pending={pending} rules={calendar?.rules || []} />
+        </section>
+
         <section className="grid-two">
           <div className="section-card">
             <PendingList
@@ -237,6 +274,10 @@ export default function App() {
 
         <section className="section-card">
           <ServiceList items={services} onSave={handleSaveService} onDelete={handleDeleteService} busy={loading} />
+        </section>
+
+        <section className="section-card">
+          <CalendarSettings calendar={calendar} saving={calendarSaving} onSave={handleSaveCalendar} />
         </section>
       </div>
       {customerDetail && <CustomerDetailCard detail={customerDetail} onClose={() => setCustomerDetail(null)} />}

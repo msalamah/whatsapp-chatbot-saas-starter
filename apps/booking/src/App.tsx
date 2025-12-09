@@ -26,6 +26,8 @@ export default function App() {
   const [otpToken, setOtpToken] = useState<string | null>(null);
   const [otpStatus, setOtpStatus] = useState<string | null>(null);
   const [otpChannel, setOtpChannel] = useState<"phone" | "email">("phone");
+  const [rangeStart, setRangeStart] = useState(() => new Date().toISOString().slice(0, 10));
+  const [rangeEnd, setRangeEnd] = useState(() => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
 
   const timezone = tenant?.calendar?.timezone || "UTC";
   const serviceOptions = useMemo(() => services.map((s) => ({ value: s.id, label: s.name })), [services]);
@@ -58,13 +60,17 @@ export default function App() {
     load();
   }, [tenantKey]);
 
+  const isRangeValid = !rangeStart || !rangeEnd || rangeEnd >= rangeStart;
+
   useEffect(() => {
     async function loadSlots() {
-      if (!selectedService) return;
+      if (!selectedService || !isRangeValid) return;
       setLoading(true);
       setError(null);
       try {
-        const s = await fetchAvailability(tenantKey, selectedService);
+        const fromISO = rangeStart ? new Date(`${rangeStart}T00:00:00`).toISOString() : undefined;
+        const toISO = rangeEnd ? new Date(`${rangeEnd}T23:59:59`).toISOString() : undefined;
+        const s = await fetchAvailability(tenantKey, selectedService, { from: fromISO, to: toISO });
         setSlots(s);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load availability");
@@ -73,7 +79,7 @@ export default function App() {
       }
     }
     loadSlots();
-  }, [tenantKey, selectedService]);
+  }, [tenantKey, selectedService, rangeStart, rangeEnd, isRangeValid]);
 
   async function handleSubmit() {
     if (!selectedService || !selectedSlot) return;
@@ -191,6 +197,17 @@ export default function App() {
               </button>
             )}
           </div>
+          <div className="date-filters">
+            <div className="form-field">
+              <label>Start date</label>
+              <input type="date" value={rangeStart} onChange={(e) => setRangeStart(e.target.value)} />
+            </div>
+            <div className="form-field">
+              <label>End date</label>
+              <input type="date" value={rangeEnd} onChange={(e) => setRangeEnd(e.target.value)} />
+            </div>
+          </div>
+          {!isRangeValid && <p className="error">End date must be on or after the start date.</p>}
           {error && step === "slot" && <p className="error">{error}</p>}
           {!slots.length && !loading && <div className="empty">No slots available.</div>}
           <div className="slot-grid">

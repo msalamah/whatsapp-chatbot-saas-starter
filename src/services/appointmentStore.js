@@ -34,3 +34,16 @@ export async function listAppointmentsForCustomer(tenantKey, customerId, { limit
   );
   return res.rows;
 }
+
+export async function listAppointmentsBetween(tenantKey, from, to) {
+  const res = await query(
+    `SELECT *
+     FROM appointments
+     WHERE tenant_key = $1
+       AND start_iso::timestamptz >= $2::timestamptz
+       AND start_iso::timestamptz <= $3::timestamptz
+     ORDER BY start_iso ASC`,
+    [tenantKey, from, to]
+  );
+  return res.rows;
+}
