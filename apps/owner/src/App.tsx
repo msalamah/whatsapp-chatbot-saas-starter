@@ -62,6 +62,7 @@ export default function App() {
   const [customerQuery, setCustomerQuery] = useState("");
   const [appointmentRange, setAppointmentRange] = useState<"all" | "upcoming" | "past">("upcoming");
   const [calendarSaving, setCalendarSaving] = useState(false);
+  const [showCustomersPage, setShowCustomersPage] = useState(false);
 
   const isLoggedIn = Boolean(token && tenant);
 
@@ -269,7 +270,12 @@ export default function App() {
         </section>
 
         <section className="section-card">
-          <CustomerList items={customers} onSelect={handleViewCustomer} />
+          <CustomerList
+            items={customers}
+            onSelect={handleViewCustomer}
+            scrollable
+            onViewAll={() => setShowCustomersPage(true)}
+          />
         </section>
 
         <section className="section-card">
@@ -281,6 +287,31 @@ export default function App() {
         </section>
       </div>
       {customerDetail && <CustomerDetailCard detail={customerDetail} onClose={() => setCustomerDetail(null)} />}
+      {showCustomersPage && (
+        <div className="customers-overlay">
+          <div className="customers-panel section-card">
+            <div className="section-header">
+              <div>
+                <h3>Customers</h3>
+                <p className="muted">Browse your entire roster and open profiles.</p>
+              </div>
+              <button className="ghost" onClick={() => setShowCustomersPage(false)}>
+                Close
+              </button>
+            </div>
+            <div className="customers-panel-body">
+              <CustomerList
+                items={customers}
+                onSelect={(id) => {
+                  handleViewCustomer(id);
+                  setShowCustomersPage(false);
+                }}
+                title="All customers"
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

@@ -103,6 +103,11 @@ export function CalendarBoard({ timezone, appointments, pending, rules = [] }: P
     return d;
   }, [timeWindow.endHour]);
 
+  const eventPropGetter = (event: { resource?: TimelineEvent }) => {
+    const type = event.resource?.type === "pending" ? "pending" : "booked";
+    return { className: type };
+  };
+
   return (
     <div className="calendar-preview">
       <BigCalendar
@@ -139,6 +144,7 @@ export function CalendarBoard({ timezone, appointments, pending, rules = [] }: P
             </div>
           )
         }}
+        eventPropGetter={eventPropGetter}
         style={{ height: 600 }}
         onSelectEvent={(event) => setSelectedEvent(event.resource || null)}
       />

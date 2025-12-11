@@ -16,7 +16,7 @@ export function PendingList({ items, onApprove, onReject, refreshing = false }: 
       </header>
       {refreshing && <div className="muted">Refreshing…</div>}
       {!items.length && <div className="empty">No pending bookings.</div>}
-      <ul className="card-list">
+      <ul className={`card-list ${items.length ? "scrollable" : ""}`}>
         {items.map((pending) => (
           <li key={pending.customerId}>
             <div>

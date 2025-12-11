@@ -11,7 +11,7 @@ export function AppointmentsList({ items }: Props) {
         <h3>Recent approvals</h3>
       </header>
       {!items.length && <div className="empty">No recent appointments</div>}
-      <ul className="card-list">
+      <ul className={`card-list ${items.length ? "scrollable" : ""}`}>
         {items.map((appt) => (
           <li key={appt.id}>
             <div>

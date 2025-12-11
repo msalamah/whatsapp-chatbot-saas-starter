@@ -207,7 +207,8 @@ export function CalendarSettings({ calendar, saving, onSave }: Props) {
                       disabled={saving}
                     />
                   </div>
-                  <div className="calendar-row">
+                  <div className="calendar-row calendar-row-action">
+                    <label className="label-placeholder">Remove</label>
                     <button className="ghost danger" onClick={() => removeRule(idx)} disabled={saving}>
                       Remove
                     </button>
@@ -250,7 +251,8 @@ export function CalendarSettings({ calendar, saving, onSave }: Props) {
                     <label>Reason</label>
                     <input value={block.reason || ""} onChange={(e) => updateBlock(idx, { reason: e.target.value })} disabled={saving} />
                   </div>
-                  <div className="calendar-row">
+                  <div className="calendar-row calendar-row-action">
+                    <label className="label-placeholder">Remove</label>
                     <button className="ghost danger" onClick={() => removeBlock(idx)} disabled={saving}>
                       Remove
                     </button>

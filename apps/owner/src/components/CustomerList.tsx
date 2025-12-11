@@ -3,17 +3,27 @@ import { CustomerRecord } from "../types";
 interface Props {
   items: CustomerRecord[];
   onSelect: (id: string) => void;
+  title?: string;
+  onViewAll?: () => void;
+  scrollable?: boolean;
 }
 
-export function CustomerList({ items, onSelect }: Props) {
+export function CustomerList({ items, onSelect, title = "Customers", onViewAll, scrollable = false }: Props) {
   return (
     <section>
       <header className="section-header">
-        <h3>Recent customers</h3>
-        <span className="muted">{items.length}</span>
+        <div className="section-header-stack">
+          <h3>{title}</h3>
+          <span className="muted">{items.length}</span>
+        </div>
+        {onViewAll && (
+          <button className="ghost" onClick={onViewAll}>
+            Open page
+          </button>
+        )}
       </header>
       {!items.length && <div className="empty">No customers yet</div>}
-      <ul className="card-list">
+      <ul className={`card-list ${scrollable && items.length ? "scrollable" : ""}`}>
         {items.map((customer) => (
           <li key={customer.id}>
             <div>
