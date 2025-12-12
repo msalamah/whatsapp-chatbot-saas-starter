@@ -4,13 +4,37 @@ This document summarizes the codebase architecture, subsystems, and local workfl
 
 ## High-level architecture
 
+```mermaid
+flowchart LR
+  subgraph Frontends
+    Admin[Admin portal<br/>apps/admin]
+    Owner[Owner portal<br/>apps/owner]
+    Booking[Customer booking web app<br/>apps/booking]
+  end
+  subgraph Backend
+    API[(Express server<br/>src/app.js)]
+    Conv[conversationService<br/>+ OpenAI]
+    Availability[availabilityService<br/>+ calendarService]
+    Stores[(Postgres<br/>tenants/customers/pending)]
+  end
+  Admin -->|Bearer token| API
+  Owner -->|Owner token/JWT| API
+  Booking -->|Public REST| API
+  API --> Conv
+  API --> Availability
+  API --> Stores
+  WA[(WhatsApp Cloud API)] -->|webhooks| API
+  API --> WA
+```
+
 | Layer | Description |
 |-------|-------------|
-| **Express backend (`src/`)** | Multi-tenant webhook + REST APIs. Handles WhatsApp webhooks, conversation orchestration, tenant CRUD, owner portal APIs, analytics, CSV exports, and persistence. |
-| **Admin portal (`apps/admin/`)** | React/Vite app for internal operator use. Connects via bearer tokens to manage tenants, rotate tokens, review audits, and handle pending bookings. |
-| **Owner portal (`apps/owner/`)** | React/Vite app for tenant-facing owners. Provides login via owner token, pending approvals, analytics cards, customer/service management, CSV export, etc. |
-| **Database** | Postgres (or `pg-mem` for tests) storing tenants, services, customers, pending bookings, appointments. Seeded from `src/tenants/tenants.json` for demos. |
-| **External integrations** | WhatsApp Business Cloud API (send/receive messages) and Google Calendar for tentative + confirmed bookings, plus OpenAI for LLM orchestration. |
+| **Express backend (`src/`)** | Multi-tenant webhook + REST APIs. Handles WhatsApp events, LLM orchestration, tenant CRUD, owner APIs, analytics, CSV exports, booking flows, and persistence. |
+| **Admin portal (`apps/admin/`)** | React/Vite app for internal operators. Uses API key auth to create/update tenants, rotate WABA tokens, edit calendars/services, and review audit logs. |
+| **Owner portal (`apps/owner/`)** | React/Vite app for tenant owners. Authenticated by owner token → JWT. Provides pending approvals, analytics, customer/service management, CSV export, and internal calendar editing. |
+| **Booking app (`apps/booking/`)** | Public-facing site tenants can share with customers. Supports service selection, timeslot browsing, OTP verification, and booking submission. |
+| **Database** | Postgres (or `pg-mem` in tests) storing tenants, services, calendars, customers, appointments, pending bookings, audit history. Seed data lives under `src/tenants/`. |
+| **External integrations** | WhatsApp Business Cloud API (webhooks + outbound messages), OpenAI Responses API for intent classification, optional Google Calendar (still supported for legacy flow). |
 
 ## Backend modules (`src/`)
 
@@ -24,12 +48,29 @@ This document summarizes the codebase architecture, subsystems, and local workfl
   - `services/availabilityService.js` calculates slots from tenant calendars.
   - `services/approvalService.js` sends confirmations/cancellations and writes appointments.
   - `services/customerStore.js`, `appointmentStore.js`, `pendingBookingStore.js`, `analyticsService.js`, `csvExport.js` handle persistence & reporting.
-  - `services/dataRetentionService.js` + `scripts/prune-data.js` implement configurable cleanup for privacy/compliance.
-  - `services/conversationService.js` manages OpenAI prompts with rule-based fallback.
-  - `services/whatsappService.js` wraps outbound Graph API calls per tenant.
-  - `tenants/tenantManager.js` normalizes tenant/service data, rotations, and seeding.
-  - `middleware/adminAuth.js` + `ownerAuth.js` enforce authentication.
-  - `utils/verifySignature.js` validates webhook signatures, `utils/logger.js` emits structured logs.
+- `services/dataRetentionService.js` + `scripts/prune-data.js` implement configurable cleanup for privacy/compliance.
+- `services/conversationService.js` manages OpenAI prompts with rule-based fallback.
+- `services/whatsappService.js` wraps outbound Graph API calls per tenant.
+- `tenants/tenantManager.js` normalizes tenant/service data, rotations, and seeding.
+- `middleware/adminAuth.js` + `ownerAuth.js` enforce authentication.
+- `utils/verifySignature.js` validates webhook signatures, `utils/logger.js` emits structured logs.
+
+### How components interact
+1. **WhatsApp agent**
+   - Meta posts inbound messages to `/webhook`.
+   - `bookingService.handleIncomingChange` resolves the tenant by `phone_number_id`, loads pending bookings, and calls `conversationService` to obtain structured intents.
+   - Depending on the action (`SHOW_AVAILABILITY`, `PENDING_STATUS`, `CANCEL_BOOKING`, `ANSWER`, `ESCALATE`, `UNKNOWN`) the service invokes `availabilityService`, `pendingBookingStore`, and `whatsappService` to send text/buttons.
+   - Slot selections create tentative events via `calendarService` and await owner approval.
+2. **Owner workflow**
+   - Owners log in via `/owner/login` with tenant key + owner token. API issues JWT.
+   - SPA calls `/owner/*` endpoints to fetch analytics, pending requests, services, customers, and internal calendar configuration.
+   - Approvals write through `appointmentStore` and clear pending entries.
+3. **Admin workflow**
+   - Admin portal authenticates with `Authorization: Bearer <ADMIN_API_KEY>` and optional actor header.
+   - CRUD endpoints at `/tenants` manage tenant metadata, services, calendars, WABA tokens, and audit logs.
+4. **Booking app**
+   - Public REST under `/public` exposes tenant summary (`/public/tenants/:key`), services, availability, OTP, and booking submission.
+   - The Vite app consumes these endpoints and feeds successful bookings into the same pending approval flow used by WhatsApp.
 
 ## Frontend apps
 
@@ -52,6 +93,66 @@ This document summarizes the codebase architecture, subsystems, and local workfl
   npm run dev
   ```
 - End users log in with tenant key + owner token. Once authenticated, the app calls `/owner/*` APIs to display pending bookings, analytics cards, appointments, customers with detail panels, service CRUD, and CSV exports.
+
+### Booking web app (`apps/booking/`)
+- Public React/Vite app that consumes `/public` APIs.
+- Flow:
+  1. Tenant key passed via querystring (`?tenant=<key>`).
+  2. Fetch tenant summary + services.
+  3. User chooses a service; UI shows price/duration and allows selecting a date range.
+  4. Calls `/public/tenants/:key/availability` to list slots.
+  5. OTP verification (`requestOtp`, `verifyOtp`) ensures contact ownership.
+  6. Booking submission hits `/public/tenants/:key/bookings`, inserting a pending record identical to WhatsApp’s flow.
+- After submission the owner sees the request in the owner portal; customer receives confirmation via WhatsApp once approved.
+
+## Scenario flows
+
+### WhatsApp booking & approval
+```mermaid
+sequenceDiagram
+  participant Customer
+  participant WhatsApp
+  participant Webhook as /webhook (Express)
+  participant BookingSvc as bookingService
+  participant LLM as conversationService
+  participant Owner as Owner portal
+
+  Customer->>WhatsApp: "Need a haircut tomorrow"
+  WhatsApp-->>Webhook: POST /webhook (JSON)
+  Webhook->>BookingSvc: handleIncomingChange
+  BookingSvc->>LLM: evaluateUserMessage
+  LLM-->>BookingSvc: {action: SHOW_AVAILABILITY, service: haircut}
+  BookingSvc->>Customer: sendButtons("Pick a time")
+  Customer->>WhatsApp: taps slot
+  WhatsApp-->>Webhook: POST /webhook (slot button)
+  BookingSvc->>Calendar: createTentativeEvent + savePendingBooking
+  BookingSvc->>Customer: sendButtons("Approve / Reject")
+  note over Owner: sees pending booking in owner portal
+  Owner->>Owner: Approve
+  Owner->>BookingSvc: POST /owner/approve → confirmEvent
+  BookingSvc->>Customer: sendText("Approved ✅ ...")
+```
+
+### Booking app funnel
+1. Customer opens `https://booking.yourdomain.com/?tenant=<key>`.
+2. App fetches `/public/tenants/:key`, `/services`, `/availability`.
+3. User selects service, date range, slot → sees summary including price/duration.
+4. User chooses OTP channel (phone/email), receives and verifies code.
+5. App submits POST `/public/tenants/:key/bookings` with slot + contact info + OTP token.
+6. Server stores pending booking, logs analytics, and optionally sends WhatsApp confirmation via `sendText`.
+7. Owner approves/rejects via portal; customer receives WhatsApp update.
+
+### Admin onboarding flow
+1. Operator logs into admin portal with API key.
+2. Creates tenant:
+   - Display name, tenant key, timezone.
+   - WABA phone-number ID + access token.
+   - Services (ID, min/max minutes, price).
+   - Default calendar rules (working hours/capacity).
+3. Admin shares tenant key + owner token with the owner.
+4. Owner logs into owner portal, updates service catalog/calendars if needed.
+5. Tenant configures their WhatsApp Business phone number to point at the shared webhook URL and grants the app messaging permissions.
+6. System ready to receive inquiries via WhatsApp or booking app.
 
 ## Running everything locally
 
@@ -84,10 +185,19 @@ This document summarizes the codebase architecture, subsystems, and local workfl
    Visit http://localhost:5174, enter tenant key + owner token.
 
 6. **Tests**
-   ```bash
-   npm test
-   ```
-   Runs Vitest suite: webhook verification, tenant validation, availability logic, owner portal integration, retention pruning, env validation.
+  ```bash
+  npm test
+  ```
+  Runs Vitest suite: webhook verification, tenant validation, availability logic, owner portal integration, retention pruning, env validation.
+
+### Required secrets and configuration
+- **WhatsApp**: Meta app webhook configured once → `.env` requires `APP_SECRET`, `WHATSAPP_VERIFY_TOKEN`, and per-tenant WABA tokens entered via admin portal.
+- **OpenAI**: `OPENAI_API_KEY` and `OPENAI_MODEL` (defaults to `gpt-4.1-mini`) for conversation intents.
+- **Database**: `DATABASE_URL` (e.g., `postgres://user:pass@host:5432/chatbot`). Tests may use `memory`.
+- **Admin**: `ADMIN_API_KEYS` comma-separated list; front-end sends `Authorization: Bearer <key>`.
+- **Owner portal**: `OWNER_JWT_SECRET` for signing owner sessions.
+- **Retention**: `PENDING_RETENTION_HOURS`, `APPOINTMENT_RETENTION_DAYS`, `CUSTOMER_RETENTION_DAYS`.
+- **CORS**: `ADMIN_ALLOW_ORIGINS` optional list for admin app.
 
 ## Operational scripts
 
