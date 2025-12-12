@@ -72,6 +72,24 @@ h1 {
   gap: 0.4rem;
 }
 
+.service-meta {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.service-meta-row {
+  display: flex;
+  gap: 0.75rem;
+  font-weight: 600;
+  color: #0b1424;
+  flex-wrap: wrap;
+}
+
 label {
   font-size: 0.9rem;
   color: #475569;

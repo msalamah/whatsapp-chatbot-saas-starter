@@ -5,9 +5,19 @@ import { Service, Slot, TenantSummary } from "./types";
 const DEFAULT_TENANT_KEY = new URLSearchParams(window.location.search).get("tenant") || "default";
 
 function formatPrice(service: Service) {
-  if (service.price == null) return "";
+  if (service.price == null) return null;
   const currency = service.currency || "USD";
   return `${currency} ${service.price}`;
+}
+
+function formatDuration(service: Service) {
+  const { minMinutes, maxMinutes } = service;
+  if (!minMinutes && !maxMinutes) return null;
+  if (minMinutes && maxMinutes && minMinutes !== maxMinutes) {
+    return `${minMinutes}-${maxMinutes} min`;
+  }
+  const duration = minMinutes || maxMinutes;
+  return duration ? `${duration} min` : null;
 }
 
 export default function App() {
@@ -180,7 +190,15 @@ export default function App() {
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
-          {selectedServiceObj && <p className="muted">{selectedServiceObj.description || formatPrice(selectedServiceObj)}</p>}
+          {selectedServiceObj && (
+            <div className="service-meta">
+              <div className="service-meta-row">
+                {formatPrice(selectedServiceObj) && <span>{formatPrice(selectedServiceObj)}</span>}
+                {formatDuration(selectedServiceObj) && <span>{formatDuration(selectedServiceObj)}</span>}
+              </div>
+              {selectedServiceObj.description && <p className="muted">{selectedServiceObj.description}</p>}
+            </div>
+          )}
         </div>
         <button className="primary" disabled={!selectedService} onClick={() => setStep("slot")}>
           Continue to times
