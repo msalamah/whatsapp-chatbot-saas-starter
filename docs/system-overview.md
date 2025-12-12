@@ -1,6 +1,19 @@
 # WhatsApp Chatbot SaaS – System Overview
 
-This document summarizes the codebase architecture, subsystems, and local workflows so new contributors can ramp quickly and understand what remains before onboarding the first production tenant.
+This document summarizes the codebase architecture, subsystems, go-to-market vision, and roadmap so new contributors can ramp quickly and understand what remains before onboarding the first production tenant.
+
+## Vision & Go-To-Market
+
+1. **Phase 1 – Arabic salons in Israel**: deliver a best-in-class WhatsApp booking assistant, owner portal, and admin tooling so salons can manage appointments locally. Success is measured by onboarding our first tenants in Arab villages/towns, minimizing manual work for salon owners, and proving reliability.
+2. **Phase 2 – Owner mobile companion**: release a native (or React Native) app so owners can approve bookings, manage calendars, and receive push notifications without using the web portal.
+3. **Phase 3 – Marketplace & commerce**: once tenant density is achieved, open a consumer-facing mobile experience where end-users can discover salons, book services, buy products, view social content, and engage with campaigns. Introduce revenue channels such as subscriptions, transaction fees, advertising, and promotions across the platform.
+
+### Current status (December 2025)
+- Backend, admin, owner, and booking web apps are implemented.
+- Internal calendar and availability engine replaces Google Calendar.
+- WhatsApp chatbot agent handles booking, status, cancellation, Q&A flows.
+- Documentation, security/compliance checklists, and deployment guides exist.
+- Pending initiatives: secret management hardening, production deployment automation, owner mobile app, and marketplace functionality.
 
 ## High-level architecture
 
@@ -153,6 +166,18 @@ sequenceDiagram
 4. Owner logs into owner portal, updates service catalog/calendars if needed.
 5. Tenant configures their WhatsApp Business phone number to point at the shared webhook URL and grants the app messaging permissions.
 6. System ready to receive inquiries via WhatsApp or booking app.
+
+## Timeline & Feature Plan
+
+| Quarter | Focus | Status |
+|---------|-------|--------|
+| **Q4 2025** | Finish MVP backend + portals, internal calendar, booking web app, documentation | ✅ Completed (feature freeze, tests passing) |
+| **Q1 2026** | Harden secrets/compliance, finalize AWS/Kubernetes deployment, set up monitoring & scheduled jobs | 🟡 In progress |
+| **Q2 2026** | Build owner mobile companion (login, approvals, calendar, push notifications) and pilot with first tenants | 🔜 Planned |
+| **Q3 2026** | Launch marketplace foundations: tenant storefront APIs, product catalog service, consumer mobile MVP | 🔜 Planned |
+| **Q4 2026** | Monetization & marketing: ads/promotions tooling, analytics dashboards, advanced guardrails/content moderation | 🔜 Planned |
+
+*Legend: ✅ Complete · 🟡 In progress · 🔜 Not started*
 
 ## Running everything locally
 

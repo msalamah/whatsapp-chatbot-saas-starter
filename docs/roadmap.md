@@ -59,8 +59,13 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
   - [x] Admin UI to configure calendar (working days, breaks, capacity)
   - [x] Owner portal calendar editor (owners manage working hours/breaks themselves)
   - [x] Availability engine uses internal calendar instead of Google
-  - [x] Booking web app supports date-range filters using internal calendar availability
-  - [x] Unified React Big Calendar views across admin, owner, and booking apps (week/day/month, scrollable hours, timezone chip, event chips)
+- [x] Booking web app supports date-range filters using internal calendar availability
+- [x] Unified React Big Calendar views across admin, owner, and booking apps (week/day/month, scrollable hours, timezone chip, event chips)
+- [ ] Owner mobile companion app (Phase 1)
+  - [ ] Define mobile MVP scope (login, approvals, calendar, push notifications)
+  - [ ] Build React Native/Expo shell consuming `/owner` APIs
+  - [ ] Implement secure JWT refresh + device token registration endpoints
+  - [ ] Deliver iOS/Android builds for internal testing
 
 ## Security & production readiness
 - [~] Establish secret management strategy across environments
