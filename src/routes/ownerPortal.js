@@ -119,16 +119,39 @@ router.get("/appointments", async (req, res) => {
 });
 
 router.get("/customers", async (req, res) => {
-  const { limit = 100, q = "" } = req.query;
-  const customers = await listCustomersForTenant(req.owner.tenantKey, { limit: Number(limit) || 100, search: String(q) });
-  res.json({ customers });
+  const { limit = 100, q = "", offset = 0 } = req.query;
+  const limitNum = Number(limit) || 100;
+  const offsetNum = Number(offset) || 0;
+  const customers = await listCustomersForTenant(req.owner.tenantKey, {
+    limit: limitNum,
+    search: String(q),
+    offset: offsetNum
+  });
+  const hasMore = customers.length === limitNum;
+  res.json({ customers, hasMore });
 });
 
 router.get("/customers/:customerId", async (req, res) => {
+  const { limit = 20, offset = 0, range = "all" } = req.query;
   const customer = await getCustomerDetail(req.owner.tenantKey, req.params.customerId);
   if (!customer) return res.status(404).json({ error: "Customer not found" });
-  const appointments = await listAppointmentsForCustomer(req.owner.tenantKey, req.params.customerId, { limit: 20 });
-  res.json({ customer, appointments });
+
+  let from = null;
+  if (range === "30d") {
+    from = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  } else if (range === "90d") {
+    from = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  }
+
+  const limitNum = Number(limit) || 20;
+  const offsetNum = Number(offset) || 0;
+  const appointments = await listAppointmentsForCustomer(req.owner.tenantKey, req.params.customerId, {
+    limit: limitNum,
+    offset: offsetNum,
+    from
+  });
+  const hasMore = appointments.length === limitNum;
+  res.json({ customer, appointments, hasMore });
 });
 
 router.get("/services", async (req, res) => {

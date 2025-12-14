@@ -61,11 +61,18 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
   - [x] Availability engine uses internal calendar instead of Google
 - [x] Booking web app supports date-range filters using internal calendar availability
 - [x] Unified React Big Calendar views across admin, owner, and booking apps (week/day/month, scrollable hours, timezone chip, event chips)
-- [ ] Owner mobile companion app (Phase 1)
-  - [ ] Define mobile MVP scope (login, approvals, calendar, push notifications)
-  - [ ] Build React Native/Expo shell consuming `/owner` APIs
+- [~] Owner mobile companion app (Phase 1)
+  - [x] Define mobile MVP scope (login, approvals, calendar, push notifications)
+  - [~] Build React Native/Expo shell consuming `/owner` APIs
   - [ ] Implement secure JWT refresh + device token registration endpoints
   - [ ] Deliver iOS/Android builds for internal testing
+  - [x] Add navigation structure (tabs for Dashboard, Calendar, Customers, Services, Settings)
+  - [ ] Implement appointments screen with filtering + detail view
+  - [ ] Implement customer search/list/detail views
+  - [ ] Implement service CRUD forms (add/edit/delete)
+  - [ ] Build internal calendar editor + timeline view (mobile-friendly)
+  - [ ] Add CSV export triggers + Share integrations
+  - [ ] Introduce push notification registration & device token sync
 
 ## Security & production readiness
 - [~] Establish secret management strategy across environments
