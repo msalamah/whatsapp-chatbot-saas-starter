@@ -118,6 +118,20 @@ flowchart LR
   6. Booking submission hits `/public/tenants/:key/bookings`, inserting a pending record identical to WhatsApp’s flow.
 - After submission the owner sees the request in the owner portal; customer receives confirmation via WhatsApp once approved.
 
+### Owner mobile app (`apps/owner-mobile/`)
+- Expo (React Native) companion that reuses the `/owner/*` APIs.
+- Features in the initial version:
+  - Secure login with tenant key + owner token. JWT is stored using `expo-secure-store`.
+  - Dashboard card with analytics (total bookings, last 30 days, upcoming, projected revenue).
+  - Pending approvals list with approve/reject controls and pull-to-refresh.
+  - Logout handling that clears cached credentials.
+- Run locally:
+  ```bash
+  npm install --prefix apps/owner-mobile
+  npm run owner-mobile:start
+  ```
+- Configure `EXPO_PUBLIC_API_BASE_URL` (e.g., `http://localhost:3000`) in your shell so the app points to the backend when running on emulators or devices.
+
 ## Scenario flows
 
 ### WhatsApp booking & approval

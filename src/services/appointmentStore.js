@@ -23,14 +23,17 @@ export async function listAppointmentsForTenant(tenantKey, { limit = 50, from = 
   return res.rows;
 }
 
-export async function listAppointmentsForCustomer(tenantKey, customerId, { limit = 20 } = {}) {
+export async function listAppointmentsForCustomer(tenantKey, customerId, { limit = 20, offset = 0, from = null } = {}) {
   const res = await query(
     `SELECT *
      FROM appointments
-     WHERE tenant_key = $1 AND customer_id = $2
+     WHERE tenant_key = $1
+       AND customer_id = $2
+       AND ($4::timestamptz IS NULL OR start_iso::timestamptz >= $4::timestamptz)
      ORDER BY start_iso DESC
-     LIMIT $3::int`,
-    [tenantKey, customerId, limit]
+     LIMIT $3::int
+     OFFSET $5::int`,
+    [tenantKey, customerId, limit, from, offset]
   );
   return res.rows;
 }

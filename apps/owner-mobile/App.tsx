@@ -1,7 +1,9 @@
+import "react-native-gesture-handler";
+import "react-native-reanimated";
 import { StatusBar } from "expo-status-bar";
 import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,6 +22,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
+import { Calendar as MonthCalendar, WeekCalendar, CalendarProvider, LocaleConfig } from "react-native-calendars";
 
 const Tab = createBottomTabNavigator();
 const CUSTOMER_PAGE_SIZE = 25;
@@ -536,11 +539,447 @@ function HomeScreen() {
 }
 
 function CalendarScreen() {
+  const { fetchAppointmentsByRange, pending } = useOwner();
+  const [view, setView] = useState<"day" | "week" | "month">("month");
+  const [items, setItems] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toLocalDateString = (date: Date) => {
+    const y = date.getFullYear();
+    const m = `${date.getMonth() + 1}`.padStart(2, "0");
+    const d = `${date.getDate()}`.padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+  const parseDateString = (value: string) => {
+    const [y, m, d] = value.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  };
+  const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateString(new Date()));
+  const [viewPickerVisible, setViewPickerVisible] = useState(false);
+
+  const loadAppointments = useCallback(async (showSpinner = true) => {
+    if (!fetchAppointmentsByRange) return;
+    if (showSpinner) setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchAppointmentsByRange("all");
+      setItems(data || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load calendar");
+    } finally {
+      if (showSpinner) setLoading(false);
+    }
+  }, [fetchAppointmentsByRange]);
+
+  useEffect(() => {
+    loadAppointments();
+  }, [loadAppointments]);
+
+  const startOfWeek = (date: Date) => {
+    const d = new Date(date);
+    const day = d.getDay(); // 0 (Sun) - 6 (Sat)
+    const diff = d.getDate() - day; // start Sunday
+    d.setDate(diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  const endOfWeek = (date: Date) => {
+    const start = startOfWeek(date);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+    return end;
+  };
+
+  const normalizeEnd = (start: Date, end?: Date) => {
+    if (end && !Number.isNaN(end.getTime())) return end;
+    const fallback = new Date(start);
+    fallback.setMinutes(fallback.getMinutes() + 45);
+    return fallback;
+  };
+
+  type CalendarEventType = {
+    id: string;
+    title: string;
+    start: Date;
+    end: Date;
+    slot?: string;
+    type: "appointment" | "pending";
+  };
+
+  const timelineEvents: CalendarEventType[] = useMemo(() => {
+    const parsed: CalendarEventType[] = [];
+    items.forEach((appt) => {
+      if (!appt.start_iso) return;
+      const start = new Date(appt.start_iso);
+      if (Number.isNaN(start.getTime())) return;
+      parsed.push({
+        id: `appt-${appt.id}`,
+        title: appt.service_name || "Appointment",
+        start,
+        end: normalizeEnd(start),
+        slot: appt.slot_label,
+        type: "appointment"
+      });
+    });
+    pending.forEach((req) => {
+      const iso = (req as { startISO?: string }).startISO;
+      if (!iso) return;
+      const start = new Date(iso);
+      if (Number.isNaN(start.getTime())) return;
+      parsed.push({
+        id: `pending-${req.customerId}-${iso}`,
+        title: req.serviceName || "Pending request",
+        start,
+        end: normalizeEnd(start),
+        slot: req.slotLabel,
+        type: "pending"
+      });
+    });
+    return parsed;
+  }, [items, pending]);
+
+  const marks = useMemo(() => {
+    const dots: Record<string, { dots: { color: string }[]; marked?: boolean }> = {};
+    timelineEvents.forEach((evt) => {
+      const key = toLocalDateString(evt.start);
+      if (!dots[key]) dots[key] = { dots: [] };
+      const color = evt.type === "pending" ? "#f87171" : "#0ea5e9";
+      dots[key].dots.push({ color });
+      dots[key].marked = true;
+    });
+    return dots;
+  }, [timelineEvents]);
+
+  const timelineDate = useMemo(() => {
+    const base = parseDateString(selectedDate);
+    if (view === "week") return startOfWeek(base);
+    return base;
+  }, [selectedDate, view]);
+
+  const label = useMemo(() => {
+    if (view === "day") {
+      return timelineDate.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" });
+    }
+    if (view === "week") {
+      const start = timelineDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const end = endOfWeek(timelineDate).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      return `${start} – ${end}`;
+    }
+    return timelineDate.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  }, [selectedDate, timelineDate, view]);
+
+  const formatTime = (date: Date) => date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+
+  const handleDayPress = (day: { dateString: string }) => {
+    setSelectedDate(day.dateString);
+  };
+
+  const goToPreviousRange = () => {
+    const base = timelineDate;
+    const date = new Date(base);
+    if (view === "month") {
+      date.setMonth(date.getMonth() - 1);
+    } else if (view === "week") {
+      date.setDate(date.getDate() - 7);
+    } else {
+      date.setDate(date.getDate() - 1);
+    }
+    setSelectedDate(toLocalDateString(date));
+  };
+
+  const goToNextRange = () => {
+    const base = timelineDate;
+    const date = new Date(base);
+    if (view === "month") {
+      date.setMonth(date.getMonth() + 1);
+    } else if (view === "week") {
+      date.setDate(date.getDate() + 7);
+    } else {
+      date.setDate(date.getDate() + 1);
+    }
+    setSelectedDate(toLocalDateString(date));
+  };
+
+  const weekDays = useMemo(() => {
+    const start = startOfWeek(timelineDate);
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [timelineDate]);
+
+  const eventsForSelectedDate = useMemo(() => {
+    return timelineEvents
+      .filter((evt) => toLocalDateString(evt.start) === selectedDate)
+      .sort((a, b) => a.start.getTime() - b.start.getTime());
+  }, [timelineEvents, selectedDate]);
+
+  const eventsByWeekDay = useMemo(() => {
+    const map: Record<string, CalendarEventType[]> = {};
+    weekDays.forEach((d) => {
+      const key = toLocalDateString(d);
+      map[key] = [];
+    });
+    timelineEvents.forEach((evt) => {
+      const key = toLocalDateString(new Date(evt.start));
+      if (map[key]) {
+        map[key].push(evt);
+      }
+    });
+    Object.keys(map).forEach((k) => {
+      map[k].sort((a, b) => a.start.getTime() - b.start.getTime());
+    });
+    return map;
+  }, [timelineEvents, weekDays]);
+
+  const weekHours = useMemo(() => Array.from({ length: 24 }).map((_, i) => i), []);
+
+  useEffect(() => {
+    // keep selected date normalized when view switches
+    if (view === "week") {
+      setSelectedDate(toLocalDateString(startOfWeek(parseDateString(selectedDate))));
+    }
+  }, [selectedDate, view]);
+
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.placeholder}>
-        <Text style={styles.placeholderText}>Calendar view coming soon.</Text>
-      </View>
+      <ScrollView
+        contentContainerStyle={[styles.section, styles.calendarScreen]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await loadAppointments(false);
+              setRefreshing(false);
+            }}
+            tintColor="#0ea5e9"
+          />
+        }
+      >
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>Calendar</Text>
+          <Text style={styles.timezoneChip}>Local time</Text>
+        </View>
+        <View style={styles.calendarToolbar}>
+          <View style={styles.calendarNav}>
+            {view !== "month" ? (
+              <TouchableOpacity style={styles.ghostButtonSmall} onPress={goToPreviousRange}>
+                <Text style={styles.ghostButtonText}>←</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 44 }} />
+            )}
+            <TouchableOpacity style={styles.viewPicker} onPress={() => setViewPickerVisible(true)}>
+              <Text style={styles.calendarLabel}>{label}</Text>
+              <Text style={styles.viewPickerText}>{view.toUpperCase()}</Text>
+            </TouchableOpacity>
+            {view !== "month" ? (
+              <TouchableOpacity style={styles.ghostButtonSmall} onPress={goToNextRange}>
+                <Text style={styles.ghostButtonText}>→</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ width: 44 }} />
+            )}
+          </View>
+        </View>
+
+        {loading && !timelineEvents.length ? <ActivityIndicator color="#0ea5e9" /> : null}
+        {error && <Text style={styles.error}>{error}</Text>}
+        {!loading && !timelineEvents.length ? <Text style={styles.muted}>No events in this view.</Text> : null}
+
+        {view === "month" ? (
+          <View style={styles.calendarWrapper}>
+            <MonthCalendar
+              current={selectedDate}
+              onDayPress={(day) => {
+                handleDayPress(day);
+                setView("day");
+              }}
+              onMonthChange={(month) => {
+                const next = new Date(month.year, month.month - 1, 1);
+                setSelectedDate(toLocalDateString(next));
+              }}
+              markedDates={{
+                ...marks,
+                [selectedDate]: { ...(marks[selectedDate] || {}), selected: true, selectedColor: "#0ea5e9", selectedTextColor: "#fff" }
+              }}
+              markingType="multi-dot"
+              firstDay={1}
+              hideExtraDays={false}
+              renderArrow={(direction) => <Text style={styles.calendarArrow}>{direction === "left" ? "←" : "→"}</Text>}
+              theme={{
+                todayTextColor: "#0ea5e9",
+                selectedDayBackgroundColor: "#0ea5e9",
+                selectedDayTextColor: "#fff",
+                arrowColor: "#0ea5e9",
+                dotColor: "#0ea5e9"
+              }}
+            />
+          </View>
+        ) : (
+          <CalendarProvider date={selectedDate}>
+            <View style={[styles.calendarWrapper, styles.weekCalendarContainer]}>
+              <WeekCalendar
+                key={`week-${selectedDate}`}
+                current={selectedDate}
+                onDayPress={(day) => {
+                  setSelectedDate(day.dateString);
+                  setView("day");
+                }}
+                firstDay={0}
+                style={styles.weekCalendar}
+                markedDates={{
+                  ...marks,
+                  [selectedDate]: { ...(marks[selectedDate] || {}), selected: true, selectedColor: "#0ea5e9", selectedTextColor: "#fff" }
+                }}
+                allowShadow={false}
+                style={{ borderBottomWidth: 0 }}
+              />
+            </View>
+            {view === "day" ? (
+              <View style={[styles.calendarWrapper, styles.weekGrid]}>
+                <View style={styles.dayGridHeader}>
+                  <Text style={styles.sectionSubtitle}>
+                    {new Date(selectedDate).toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })}
+                  </Text>
+                </View>
+                <ScrollView
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.weekGridScrollContent}
+                >
+                  {weekHours.map((hour) => {
+                    const hourEvents = eventsForSelectedDate.filter((evt) => new Date(evt.start).getHours() === hour);
+                    return (
+                      <View key={hour} style={styles.weekRow}>
+                        <View style={styles.weekTimeCol}>
+                          <Text style={styles.weekTimeText}>{`${hour.toString().padStart(2, "0")}:00`}</Text>
+                        </View>
+                        <View style={styles.dayCell}>
+                          {hourEvents.length === 0 ? null : (
+                            hourEvents.map((event) => (
+                              <View
+                                key={event.id}
+                                style={[
+                                  styles.weekEvent,
+                                  { marginVertical: 2 },
+                                  event.type === "pending"
+                                    ? { borderColor: "#f87171", backgroundColor: "rgba(248,113,113,0.12)" }
+                                    : { borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.12)" }
+                                ]}
+                              >
+                                <Text style={[styles.calendarEventTitle, { fontSize: 12 }]} numberOfLines={1} ellipsizeMode="tail">
+                                  {event.title}
+                                </Text>
+                                <Text style={[styles.calendarEventMeta, { fontSize: 11 }]} numberOfLines={1} ellipsizeMode="tail">
+                                  {formatTime(new Date(event.start))} – {formatTime(new Date(event.end))} {event.slot ? `· ${event.slot}` : ""}
+                                </Text>
+                              </View>
+                            ))
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            ) : (
+              <View style={[styles.calendarWrapper, styles.weekGrid]}>
+                <View style={styles.weekGridHeader}>
+                  <View style={styles.weekTimeCol} />
+                  {weekDays.map((d) => (
+                    <View key={d.toISOString()} style={styles.weekDayColHeader}>
+                      <Text style={styles.weekDayName}>{d.toLocaleDateString(undefined, { weekday: "short" })}</Text>
+                      <Text style={styles.weekDayDate}>{d.getDate()}</Text>
+                    </View>
+                  ))}
+                </View>
+                <ScrollView
+                  nestedScrollEnabled
+                  showsVerticalScrollIndicator={false}
+                  contentContainerStyle={styles.weekGridScrollContent}
+                >
+                  {weekHours.map((hour) => (
+                    <View key={hour} style={styles.weekRow}>
+                      <View style={styles.weekTimeCol}>
+                        <Text style={styles.weekTimeText}>{`${hour.toString().padStart(2, "0")}:00`}</Text>
+                      </View>
+                      {weekDays.map((d, idx) => {
+                        const key = toLocalDateString(d);
+                        const events = eventsByWeekDay[key] || [];
+                        const hourEvents = events.filter((evt) => new Date(evt.start).getHours() === hour);
+                        return (
+                          <View
+                            key={key + hour}
+                            style={[styles.weekCell, idx < weekDays.length - 1 && styles.weekCellDivider]}
+                          >
+                            {hourEvents.map((event) => (
+                              <View
+                                key={event.id}
+                                style={[
+                                  styles.weekEvent,
+                                  event.type === "pending"
+                                    ? { borderColor: "#f87171", backgroundColor: "rgba(248,113,113,0.12)" }
+                                    : { borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.12)" }
+                                ]}
+                              >
+                                <Text style={[styles.calendarEventTitle, { fontSize: 12 }]} numberOfLines={1} ellipsizeMode="tail">
+                                  {event.title}
+                                </Text>
+                                <Text style={[styles.calendarEventMeta, { fontSize: 11 }]} numberOfLines={1} ellipsizeMode="tail">
+                                  {formatTime(new Date(event.start))} – {formatTime(new Date(event.end))}
+                                </Text>
+                              </View>
+                            ))}
+                          </View>
+                        );
+                      })}
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            )}
+          </CalendarProvider>
+        )}
+        <Modal transparent visible={viewPickerVisible} animationType="fade" onRequestClose={() => setViewPickerVisible(false)}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setViewPickerVisible(false)}>
+            <View style={styles.viewSheet}>
+              <View style={styles.viewSheetHeader}>
+                <Text style={styles.viewSheetTitle}>Choose view</Text>
+                <TouchableOpacity onPress={() => setViewPickerVisible(false)}>
+                  <Text style={styles.viewSheetClose}>Close</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.viewSheetSubtitle}>Jump between day, week, or month layouts.</Text>
+              {([
+                { mode: "day", label: "Day view", hint: "Focus on a single day" },
+                { mode: "week", label: "Week view", hint: "See the full week timeline" },
+                { mode: "month", label: "Month view", hint: "Overview for the month" }
+              ] as const).map(({ mode, label, hint }) => (
+                <TouchableOpacity
+                  key={mode}
+                  style={[styles.viewOptionRow, view === mode && styles.viewOptionRowSelected]}
+                  onPress={() => {
+                    setView(mode);
+                    setViewPickerVisible(false);
+                  }}
+                  activeOpacity={0.9}
+                >
+                  <View style={styles.viewOptionCopy}>
+                    <Text style={[styles.viewOptionText, view === mode && styles.viewOptionTextSelected]}>{label}</Text>
+                    <Text style={styles.viewOptionHint}>{hint}</Text>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -665,16 +1104,17 @@ function CustomersScreen() {
     <SafeAreaView style={styles.safe}>
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Customers</Text>
-        <View style={styles.searchRow}>
+        <View style={styles.searchBar}>
+          <Ionicons name="search" size={18} color="#94a3b8" />
           <TextInput
             placeholder="Search name or phone"
-            style={[styles.input, styles.searchInput]}
+            style={[styles.input, styles.searchInput, styles.searchBareInput]}
             value={query}
             onChangeText={setQuery}
+            returnKeyType="search"
+            onSubmitEditing={handleSearch}
+            blurOnSubmit
           />
-          <TouchableOpacity style={styles.primaryButton} onPress={handleSearch} disabled={loading}>
-            <Text style={styles.primaryButtonText}>Search</Text>
-          </TouchableOpacity>
         </View>
         {loading && <ActivityIndicator color="#0ea5e9" />}
         {error && <Text style={styles.error}>{error}</Text>}
@@ -768,6 +1208,7 @@ function ServicesScreen() {
   const { control, handleSubmit, reset } = useForm<ServiceRecord>({ defaultValues: EMPTY_SERVICE });
   const [modalVisible, setModalVisible] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     fetchServices();
@@ -816,17 +1257,25 @@ function ServicesScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.section}>
+      <ScrollView
+        contentContainerStyle={[styles.section, styles.serviceContent]}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              try {
+                await fetchServices();
+              } finally {
+                setRefreshing(false);
+              }
+            }}
+            tintColor="#0ea5e9"
+          />
+        }
+      >
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Service catalog</Text>
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TouchableOpacity style={styles.ghostButtonSmall} onPress={() => fetchServices()}>
-              <Text style={styles.ghostButtonText}>Refresh</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.primaryButton} onPress={() => openModal()} disabled={busy}>
-              <Text style={styles.primaryButtonText}>Add service</Text>
-            </TouchableOpacity>
-          </View>
         </View>
         {!services.length && <Text style={styles.muted}>No services configured.</Text>}
         {services.map((service) => (
@@ -838,7 +1287,7 @@ function ServicesScreen() {
             </Text>
             {service.description ? <Text style={styles.cardSubtitle}>{service.description}</Text> : null}
             <View style={styles.cardActions}>
-              <TouchableOpacity style={[styles.actionButton, styles.approve]} onPress={() => openModal(service)}>
+              <TouchableOpacity style={[styles.actionButton, styles.primaryAction]} onPress={() => openModal(service)}>
                 <Text style={styles.actionButtonText}>Edit</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[styles.actionButton, styles.reject]} onPress={() => handleDelete(service.id)}>
@@ -848,6 +1297,10 @@ function ServicesScreen() {
           </View>
         ))}
       </ScrollView>
+      <TouchableOpacity style={styles.fab} onPress={() => openModal()} disabled={busy}>
+        <Ionicons name="add" size={22} color="#fff" />
+        <Text style={styles.fabText}>Add service</Text>
+      </TouchableOpacity>
 
       <Modal visible={modalVisible} animationType="slide" onRequestClose={() => setModalVisible(false)} transparent>
         <View style={styles.modalOverlay}>
@@ -1015,6 +1468,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
+  fullWidthButton: {
+    width: "100%"
+  },
   primaryButtonText: {
     color: "#fff",
     fontWeight: "600",
@@ -1031,6 +1487,30 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1
+  },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    paddingHorizontal: 12,
+    paddingVertical: 6
+  },
+  searchBareInput: {
+    borderWidth: 0,
+    paddingHorizontal: 0,
+    height: 40
+  },
+  timezoneChip: {
+    backgroundColor: "rgba(14, 165, 233, 0.12)",
+    color: "#0ea5e9",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    fontWeight: "700"
   },
   ghostButton: {
     borderRadius: 999,
@@ -1050,10 +1530,49 @@ const styles = StyleSheet.create({
     color: "#0f172a",
     fontWeight: "600"
   },
+  calendarToolbar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    marginTop: 4
+  },
+  calendarNav: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12
+  },
+  calendarLabel: {
+    fontWeight: "700",
+    color: "#0f172a"
+  },
+  viewPicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    backgroundColor: "#f8fafc",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    alignSelf: "flex-start"
+  },
+  viewPickerText: {
+    color: "#0ea5e9",
+    fontWeight: "700"
+  },
   section: {
     paddingHorizontal: 20,
     paddingVertical: 12,
     gap: 12
+  },
+  calendarScreen: {
+    flex: 1,
+    paddingBottom: 12
+  },
+  serviceContent: {
+    paddingBottom: 140
   },
   sectionTitle: {
     fontSize: 18,
@@ -1088,6 +1607,179 @@ const styles = StyleSheet.create({
   pillLabelActive: {
     color: "#0ea5e9",
     fontWeight: "600"
+  },
+  calendarDayCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 14,
+    marginTop: 10,
+    gap: 10
+  },
+  calendarDayHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  calendarEvent: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#f8fafc"
+  },
+  calendarEventTitle: {
+    fontWeight: "700",
+    color: "#0f172a"
+  },
+  calendarEventMeta: {
+    color: "#64748b",
+    marginTop: 2
+  },
+  calendarArrow: {
+    fontSize: 18,
+    color: "#0ea5e9"
+  },
+  calendarWrapper: {
+    marginTop: 10,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    backgroundColor: "#fff",
+    width: "100%"
+  },
+  weekCalendarContainer: {
+    minHeight: 90
+  },
+  weekCalendar: {
+    height: 90,
+    paddingVertical: 6,
+    paddingHorizontal: 8
+  },
+  timelineWrapper: {
+    minHeight: 600,
+    marginTop: 12,
+    padding: 12
+  },
+  weekGrid: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingBottom: 12
+  },
+  weekGridScrollContent: {
+    paddingBottom: 120
+  },
+  weekGridHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8
+  },
+  weekTimeCol: {
+    width: 64,
+    paddingRight: 8
+  },
+  weekDayColHeader: {
+    flex: 1,
+    alignItems: "center"
+  },
+  weekDayName: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: "600"
+  },
+  weekDayDate: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a"
+  },
+  weekDayWrapper: {
+    width: 48,
+    alignItems: "center",
+    paddingVertical: 4,
+    marginHorizontal: 6,
+    minHeight: 64,
+    justifyContent: "center"
+  },
+  weekDayNameTop: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: "600",
+    marginBottom: 4
+  },
+  weekDayNumber: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a",
+    lineHeight: 18
+  },
+  weekDayNumberSelected: {
+    color: "#fff"
+  },
+  weekDayNumberPill: {
+    minWidth: 32,
+    minHeight: 30,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: "#f1f5f9",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  weekDayNumberPillSelected: {
+    backgroundColor: "#0ea5e9"
+  },
+  weekDayDisabled: {
+    color: "#cbd5e1"
+  },
+  weekDotsRow: {
+    flexDirection: "row",
+    gap: 4,
+    marginTop: 4
+  },
+  weekDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2
+  },
+  weekRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    height: 60,
+    borderTopWidth: 1,
+    borderTopColor: "#e2e8f0"
+  },
+  weekTimeText: {
+    color: "#94a3b8",
+    fontSize: 12
+  },
+  weekCell: {
+    flex: 1,
+    height: "100%",
+    paddingHorizontal: 4,
+    justifyContent: "center",
+    alignItems: "stretch"
+  },
+  dayCell: {
+    flex: 1,
+    height: "100%",
+    paddingHorizontal: 4,
+    justifyContent: "center"
+  },
+  weekCellDivider: {
+    borderRightWidth: 1,
+    borderRightColor: "#e2e8f0"
+  },
+  weekEvent: {
+    borderRadius: 12,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    maxHeight: 44,
+    overflow: "hidden"
   },
   formLabel: {
     color: "#475569",
@@ -1136,6 +1828,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center"
   },
+  primaryAction: {
+    backgroundColor: "#0ea5e9"
+  },
   approve: {
     backgroundColor: "#22c55e"
   },
@@ -1145,6 +1840,28 @@ const styles = StyleSheet.create({
   actionButtonText: {
     color: "#fff",
     fontWeight: "600"
+  },
+  fab: {
+    position: "absolute",
+    right: 20,
+    bottom: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#0ea5e9",
+    borderRadius: 999,
+    paddingHorizontal: 18,
+    height: 54,
+    shadowColor: "#0ea5e9",
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 5
+  },
+  fabText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 16
   },
   analyticsGrid: {
     flexDirection: "row",
@@ -1216,6 +1933,82 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12
+  },
+  viewModal: {
+    backgroundColor: "#fff",
+    margin: 20,
+    borderRadius: 16,
+    padding: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 5
+  },
+  viewSheet: {
+    width: "100%",
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    paddingTop: 10,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    shadowColor: "#000",
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8
+  },
+  viewSheetHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+    paddingHorizontal: 4
+  },
+  viewSheetTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a"
+  },
+  viewSheetClose: {
+    fontSize: 14,
+    color: "#0ea5e9",
+    fontWeight: "700"
+  },
+  viewSheetSubtitle: {
+    fontSize: 13,
+    color: "#475569",
+    marginTop: 2,
+    marginBottom: 10,
+    paddingHorizontal: 4
+  },
+  viewOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginTop: 8
+  },
+  viewOptionRowSelected: {
+    backgroundColor: "rgba(14, 165, 233, 0.08)"
+  },
+  viewOptionCopy: {
+    flex: 1
+  },
+  viewOptionText: {
+    fontWeight: "700",
+    color: "#0f172a",
+    fontSize: 15
+  },
+  viewOptionTextSelected: {
+    color: "#0ea5e9"
+  },
+  viewOptionHint: {
+    fontSize: 12,
+    color: "#64748b",
+    marginTop: 2
   },
   historyButton: {
     height: 44,
