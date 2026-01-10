@@ -1,0 +1,277 @@
+import OpenAI from "openai";
+import fetch, { Headers, Request, Response, FormData, Blob, File } from "node-fetch";
+import { logger } from "../utils/logger.js";
+import { findServiceByText, getServiceById } from "../tenants/tenantManager.js";
+
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+if (!globalThis.fetch) globalThis.fetch = fetch;
+if (!globalThis.Headers) globalThis.Headers = Headers;
+if (!globalThis.Request) globalThis.Request = Request;
+if (!globalThis.Response) globalThis.Response = Response;
+if (!globalThis.FormData) globalThis.FormData = FormData;
+if (!globalThis.Blob) globalThis.Blob = Blob;
+if (!globalThis.File) globalThis.File = File;
+const client = OPENAI_API_KEY ? new OpenAI({ apiKey: OPENAI_API_KEY, fetch }) : null;
+
+const FALLBACK_MESSAGES = {
+  introduction: {
+    default: "Hi! I'm your virtual salon assistant. I can help with bookings, hours, and services.",
+    he: "היי! אני העוזרת הווירטואלית של הסלון. אפשר לעזור בקביעת תורים ושאלות על השירותים.",
+    ar: "مرحباً! أنا المساعدة الافتراضية للصالون. أستطيع مساعدتك في حجز المواعيد أو الإجابة عن الأسئلة."
+  },
+  unavailable: {
+    default: "I'm struggling to understand that request right now. Try asking about booking a time or our services.",
+    he: "קצת קשה לי להבין את הבקשה. נסה לבקש תור או לשאול על השירותים שלנו.",
+    ar: "أواجه صعوبة في فهم الطلب الآن. جرّب أن تطلب موعداً أو تسأل عن خدمات الصالون."
+  }
+};
+
+const RESPONSE_SCHEMA = {
+  type: "json_schema",
+  name: "salon_chatbot_plan",
+  schema: {
+    type: "object",
+    properties: {
+      action: {
+        type: "string",
+        enum: ["SHOW_AVAILABILITY", "PENDING_STATUS", "CANCEL_BOOKING", "ANSWER", "ESCALATE", "UNKNOWN"]
+      },
+      response: { type: "string" },
+      service: { type: "string" },
+      preferred_time: { type: "string", description: "Natural language preferred time expression, if any." }
+    },
+    required: ["action", "response"],
+    additionalProperties: false
+  },
+  strict: false
+};
+
+export async function evaluateUserMessage({ tenant, text, pendingBooking = null }) {
+  if (!text) {
+    const fallback = pickLocalized("unavailable", detectLanguage(text));
+    return { action: "UNKNOWN", response: fallback, language: "default" };
+  }
+
+  const inferredLang = detectLanguage(text);
+
+  if (client) {
+    try {
+      const systemPrompt = buildSystemPrompt(tenant, pendingBooking, inferredLang);
+      const userPrompt = buildUserPrompt(text, pendingBooking);
+      const response = await client.responses.create({
+        model: OPENAI_MODEL,
+        input: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        text: {
+          format: RESPONSE_SCHEMA
+        }
+      });
+      const content = response.output?.[0]?.content?.[0]?.text;
+      if (content) {
+        const parsed = JSON.parse(content);
+        return normalizeResult(parsed, tenant, pendingBooking, inferredLang);
+      }
+      logger.warn("LLM returned empty content; using fallback");
+    } catch (err) {
+      logger.warn("LLM evaluation failed; using fallback", "llm", { error: err.message });
+    }
+  }
+
+  const fallback = ruleBasedFallback({ tenant, text, pendingBooking, inferredLang });
+  return normalizeResult(fallback, tenant, pendingBooking, inferredLang);
+}
+
+function buildSystemPrompt(tenant, pendingBooking, lang) {
+  const salonName = tenant?.displayName || "the salon";
+  const timezone = tenant?.calendar?.timezone || "UTC";
+  const servicesContext = describeServices(tenant);
+  return [
+    `You are an AI assistant for ${salonName}.`,
+    "You must respond in the salon's tone: friendly, concise, helpful.",
+    "Detect the language of the customer message and WRITE YOUR ENTIRE RESPONSE in that language unless the user explicitly requests another language.",
+    "Stay focused on the business. If the user asks for chit-chat, math, trivia, or anything unrelated to appointments, services, policies, or the business itself, politely decline.",
+    "When declining, set action to UNKNOWN and remind them you can help with bookings, services, or business information.",
+    "Detect user intent and choose one ACTION from:",
+    " - SHOW_AVAILABILITY: user wants to book or change an appointment.",
+    " - PENDING_STATUS: user asks about existing pending booking or approval.",
+    " - CANCEL_BOOKING: user wants to cancel upcoming booking.",
+    " - ANSWER: user asks general question that you can answer directly.",
+    " - ESCALATE: user explicitly asks for a human or has an issue you cannot solve.",
+    " - UNKNOWN: you cannot determine the intent.",
+    "Always include a helpful short reply in the response field.",
+    `Current timezone: ${timezone}.`,
+    servicesContext ? `Available services (return service IDs in the 'service' field when relevant):\n${servicesContext}` : "No specific service catalog provided. If the user specifies a service, echo their wording.",
+    pendingBooking
+      ? `Pending booking exists: ${pendingBooking.slotLabel || pendingBooking.startISO}, awaiting owner approval.`
+      : "There is no pending booking right now.",
+    `Return JSON using the provided schema. If you mention dates/times, include them in the customer's language (${lang || "unknown"}).`
+  ].join("\n");
+}
+
+function buildUserPrompt(text, pendingBooking) {
+  return [
+    "Customer message:",
+    text,
+    pendingBooking
+      ? `Customer currently waiting for approval of ${pendingBooking.slotLabel || pendingBooking.startISO}.`
+      : "Customer has no pending booking on file."
+  ].join("\n");
+}
+
+function normalizeResult(result, tenant, pendingBooking, lang) {
+  const action = result.action || "UNKNOWN";
+  let response = (result.response || "").trim();
+  if (!response) response = defaultResponseForAction(action, tenant, pendingBooking, lang);
+  const serviceInfo = resolveServiceFromString(tenant, result.service);
+  return {
+    action,
+    response,
+    serviceId: serviceInfo?.id || (result.service?.trim() || null),
+    serviceName: serviceInfo?.name || null,
+    preferred_time: result.preferred_time?.trim() || null,
+    language: result.language || lang
+  };
+}
+
+function ruleBasedFallback({ tenant, text, pendingBooking, inferredLang }) {
+  const lower = text.toLowerCase();
+  const language = inferredLang || "default";
+  const matchedService = findServiceByText(tenant, text);
+  const salonName = tenant?.displayName || "the business";
+  if (pendingBooking && /(status|confirm|approved|pending|update)/.test(lower)) {
+    return {
+      action: "PENDING_STATUS",
+      response: pickLocalized(
+        "pending_status",
+        language,
+        pendingBooking.slotLabel || "the requested time"
+      ),
+      service: pendingBooking?.serviceId || null,
+      language
+    };
+  }
+  if (/(cancel|can't make it|reschedule|בטל|לבטל|الغاء|إلغاء)/.test(lower)) {
+    return {
+      action: "CANCEL_BOOKING",
+      response: pickLocalized("cancel_hint", language),
+      service: matchedService?.id || pendingBooking?.serviceId || null,
+      language
+    };
+  }
+  if (/(book|appointment|schedule|hair|nail|massage|available|slot|time|תור|שעה|book me|حجز|موعد)/.test(lower)) {
+    return {
+      action: "SHOW_AVAILABILITY",
+      response: pickLocalized("show_slots", language),
+      service: matchedService?.id || null,
+      language
+    };
+  }
+  if (/(hi|hello|hey|thanks|thank you|תודה|שלום|مرحبا|شكرا)/.test(lower)) {
+    return {
+      action: "ANSWER",
+      response: pickLocalized("greeting", language, tenant?.displayName || "the salon"),
+      language
+    };
+  }
+  const fallback = pickLocalized("out_of_scope", language, salonName);
+  return {
+    action: "UNKNOWN",
+    response: fallback,
+    language
+  };
+}
+
+function defaultResponseForAction(action, tenant, pendingBooking, lang) {
+  switch (action) {
+    case "SHOW_AVAILABILITY":
+      return pickLocalized("show_slots", lang);
+    case "PENDING_STATUS":
+      return pendingBooking
+        ? pickLocalized("pending_status", lang, pendingBooking.slotLabel || "the requested time")
+        : pickLocalized("pending_none", lang);
+    case "CANCEL_BOOKING":
+      return pickLocalized("cancel_hint", lang);
+    case "ESCALATE":
+      return pickLocalized("escalate", lang);
+    case "ANSWER":
+      return pickLocalized("greeting", lang, tenant?.displayName || "the salon");
+    default:
+      return pickLocalized("out_of_scope", lang, tenant?.displayName || "the business");
+  }
+}
+
+function detectLanguage(text = "") {
+  if (!text) return "default";
+  const sample = text.slice(0, 64);
+  if (/[א-ת]/.test(sample)) return "he";
+  if (/[ء-ي]/.test(sample)) return "ar";
+  return "default";
+}
+
+function describeServices(tenant) {
+  if (!tenant?.services?.length) return "";
+  return tenant.services
+    .map((svc) => {
+      const duration = svc.minMinutes === svc.maxMinutes
+        ? `${svc.minMinutes} min`
+        : `${svc.minMinutes}-${svc.maxMinutes} min`;
+      const price = svc.price ? `${svc.currency || "USD"} ${svc.price}` : "price on request";
+      return `${svc.id}: ${svc.name} (${duration}, ${price}) - ${svc.description || "No description"}`;
+    })
+    .join("\n");
+}
+
+function resolveServiceFromString(tenant, raw) {
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  return getServiceById(tenant, trimmed) || findServiceByText(tenant, trimmed);
+}
+
+const LOCALIZED_STRINGS = {
+  show_slots: {
+    default: "Sure! Here are the next available slots.",
+    he: "בשמחה! הנה התורים הפנויים הקרובים.",
+    ar: "بكل سرور! هذه المواعيد المتاحة قريباً."
+  },
+  pending_status: {
+    default: (slot) => `We're still waiting for the owner to approve your booking for ${slot}. We'll update you soon.`,
+    he: (slot) => `אנחנו עדיין מחכים לאישור עבור ${slot}. נעדכן אותך בקרוב.`,
+    ar: (slot) => `ما زلنا ننتظر الموافقة على حجز ${slot}. سنخبرك قريباً.`
+  },
+  pending_none: {
+    default: "I couldn't find a pending booking. Want me to show the next openings?",
+    he: "לא מצאתי הזמנה ממתינה. רוצה לראות את התורים הפנויים הבאים?",
+    ar: "لم أجد حجزاً قيد الانتظار. هل تود رؤية المواعيد المتاحة التالية؟"
+  },
+  cancel_hint: {
+    default: "No problem. Reply with the 'Reject' button to cancel, or ask for another time.",
+    he: "אין בעיה. לחץ על כפתור 'Reject' כדי לבטל, או בקש זמן אחר.",
+    ar: "لا مشكلة. اضغط على زر 'Reject' للإلغاء أو اطلب موعداً آخر."
+  },
+  greeting: {
+    default: (name) => `Hi! I'm the assistant for ${name}. How can I help today?`,
+    he: (name) => `שלום! אני העוזרת הווירטואלית של ${name}. איך אפשר לעזור?`,
+    ar: (name) => `مرحباً! أنا المساعدة الافتراضية لـ${name}. كيف أستطيع مساعدتك؟`
+  },
+  escalate: {
+    default: "I'll let the salon know you'd like a human to respond. Expect a follow-up soon.",
+    he: "אעדכן את הסלון שאתה מעוניין לדבר עם נציג. נחזור אליך בקרוב.",
+    ar: "سأبلغ الصالون بأنك ترغب بالتواصل مع شخص. سنتواصل معك قريباً."
+  },
+  out_of_scope: {
+    default: (name) => `I'm here to help with bookings and services for ${name}. Let me know if you need anything related to the business.`,
+    he: (name) => `אני יכולה לעזור רק בנושאים הקשורים ל${name}. שאל אותי על שירותים או תורים ונמשיך משם.`,
+    ar: (name) => `يمكنني المساعدة فقط فيما يتعلق بـ${name}، مثل المواعيد أو الخدمات. أخبرني بما تحتاجه حول الصالون.`
+  },
+  unavailable: FALLBACK_MESSAGES.unavailable
+};
+
+function pickLocalized(key, lang = "default", arg = null) {
+  const table = LOCALIZED_STRINGS[key] || FALLBACK_MESSAGES[key] || LOCALIZED_STRINGS.unavailable;
+  const entry = table[lang] || table.default || LOCALIZED_STRINGS.unavailable.default;
+  if (typeof entry === "function") return entry(arg || "");
+  return entry;
+}

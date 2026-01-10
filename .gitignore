@@ -3,3 +3,12 @@ node_modules
 npm-debug.log*
 .DS_Store
 src/config/*token*.json
+apps/admin/dist
+apps/admin/dist.tar.gz
+data/postgres
+apps/owner/dist
+
+# Local installers
+AWSCLIV2.pkg
+# Scratch files
+stable.txt

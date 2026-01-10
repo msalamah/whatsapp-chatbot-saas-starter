@@ -4,14 +4,34 @@
   "type": "module",
   "main": "src/server.js",
   "scripts": {
-    "dev": "node src/server.js"
+    "dev": "node src/server.js",
+    "admin:dev": "npm --prefix apps/admin run dev",
+    "admin:build": "npm --prefix apps/admin run build",
+    "admin:bundle": "npm --prefix apps/admin run build && tar -czf apps/admin/dist.tar.gz -C apps/admin/dist .",
+    "owner:dev": "npm --prefix apps/owner run dev",
+    "owner:build": "npm --prefix apps/owner run build",
+    "owner-mobile:start": "npm --prefix apps/owner-mobile run start",
+    "retention:prune": "node scripts/prune-data.js",
+    "test": "cross-env NODE_ENV=test DATABASE_URL=memory OWNER_JWT_SECRET=test-owner-secret vitest run"
   },
   "dependencies": {
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "node-fetch": "^3.3.2",
-    "raw-body": "^2.5.2",
     "googleapis": "^131.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "luxon": "^3.7.2",
+    "node-fetch": "^3.3.2",
+    "nodemailer": "^7.0.11",
+    "openai": "^6.6.0",
+    "pg": "^8.16.3",
+    "pg-mem": "^3.0.5",
+    "twilio": "^5.10.7",
     "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.3",
+    "supertest": "^7.1.4",
+    "vitest": "^0.34.6"
   }
 }
