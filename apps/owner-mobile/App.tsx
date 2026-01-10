@@ -59,6 +59,35 @@ type Appointment = {
   start_iso?: string;
 };
 
+type CalendarRule = {
+  dayOfWeek: number;
+  start: string;
+  end: string;
+  capacity?: number | null;
+};
+
+type CalendarBlock = {
+  startISO: string;
+  endISO: string;
+  reason?: string | null;
+};
+
+type OwnerCalendar = {
+  timezone: string;
+  capacity: number;
+  lookaheadDays: number;
+  rules: CalendarRule[];
+  blocks: CalendarBlock[];
+};
+
+type AvailabilitySlot = {
+  startISO: string;
+  endISO: string;
+  displayLabel: string;
+  buttonLabel: string;
+  timezone?: string;
+};
+
 type CustomerRecord = {
   id: string;
   displayName?: string;
@@ -146,6 +175,18 @@ type OwnerContextValue = {
   fetchServices: () => Promise<ServiceRecord[]>;
   saveService: (service: Partial<ServiceRecord>) => Promise<ServiceRecord[]>;
   deleteService: (serviceId: string) => Promise<ServiceRecord[]>;
+  calendar: OwnerCalendar | null;
+  refreshCalendar: () => Promise<OwnerCalendar | null>;
+  saveCalendar: (cal: OwnerCalendar) => Promise<OwnerCalendar | null>;
+  createBooking: (payload: {
+    customerName: string;
+    customerPhone: string;
+    serviceId?: string;
+    startISO: string;
+    endISO: string;
+    notes?: string;
+  }) => Promise<void>;
+  openBooking: (start?: Date) => void;
 };
 
 const OwnerContext = createContext<OwnerContextValue | undefined>(undefined);
@@ -166,6 +207,24 @@ export default function App() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([]);
   const [customersHasMore, setCustomersHasMore] = useState(false);
   const [services, setServices] = useState<ServiceRecord[]>([]);
+  const [calendar, setCalendar] = useState<OwnerCalendar | null>(null);
+  const [bookingVisible, setBookingVisible] = useState(false);
+  const [bookingName, setBookingName] = useState("");
+  const [bookingPhone, setBookingPhone] = useState("");
+  const [bookingServiceId, setBookingServiceId] = useState<string | undefined>(undefined);
+  const [bookingStartISO, setBookingStartISO] = useState("");
+  const [bookingEndISO, setBookingEndISO] = useState("");
+  const [bookingNotes, setBookingNotes] = useState("");
+  const [bookingSaving, setBookingSaving] = useState(false);
+  const [availFrom, setAvailFrom] = useState(() => new Date().toISOString());
+  const [availTo, setAvailTo] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return d.toISOString();
+  });
+  const [availSlots, setAvailSlots] = useState<AvailabilitySlot[]>([]);
+  const [availLoading, setAvailLoading] = useState(false);
+  const [availPicker, setAvailPicker] = useState<"from" | "to" | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionCustomer, setActionCustomer] = useState<string | null>(null);
@@ -197,12 +256,13 @@ export default function App() {
     setLoading(true);
     setError(null);
     try {
-      const [pendingRes, analyticsRes, appointmentsRes, customersRes, servicesRes] = await Promise.all([
+      const [pendingRes, analyticsRes, appointmentsRes, customersRes, servicesRes, calendarRes] = await Promise.all([
         apiRequest<{ pending: PendingBooking[] }>("/owner/pending", {}, jwt),
         apiRequest<{ analytics: AnalyticsSummary }>("/owner/analytics", {}, jwt),
         apiRequest<{ appointments: Appointment[] }>("/owner/appointments?limit=10&range=upcoming", {}, jwt),
         apiRequest<{ customers: CustomerRecord[]; hasMore?: boolean }>("/owner/customers?limit=25", {}, jwt),
-        apiRequest<{ services: ServiceRecord[] }>("/owner/services", {}, jwt)
+        apiRequest<{ services: ServiceRecord[] }>("/owner/services", {}, jwt),
+        apiRequest<{ calendar: OwnerCalendar }>("/owner/calendar", {}, jwt)
       ]);
       setPending(pendingRes.pending || []);
       setAnalytics(analyticsRes.analytics || null);
@@ -210,6 +270,7 @@ export default function App() {
       setCustomers(customersRes.customers || []);
       setCustomersHasMore(Boolean(customersRes.hasMore));
       setServices(servicesRes.services || []);
+      setCalendar(calendarRes.calendar || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
@@ -304,6 +365,101 @@ export default function App() {
     return data.services || [];
   }, [jwt]);
 
+  const refreshCalendar = useCallback(async () => {
+    if (!jwt) return null;
+    const data = await apiRequest<{ calendar: OwnerCalendar }>("/owner/calendar", {}, jwt);
+    setCalendar(data.calendar || null);
+    return data.calendar || null;
+  }, [jwt]);
+
+  const saveCalendar = useCallback(
+    async (next: OwnerCalendar) => {
+      if (!jwt) return null;
+      const data = await apiRequest<{ calendar: OwnerCalendar }>(
+        "/owner/calendar",
+        { method: "PUT", body: JSON.stringify(next) },
+        jwt
+      );
+      setCalendar(data.calendar || null);
+      return data.calendar || null;
+    },
+    [jwt]
+  );
+
+  const createBooking = useCallback(
+    async (payload: { customerName: string; customerPhone: string; serviceId?: string; startISO: string; endISO: string; notes?: string }) => {
+      if (!jwt) return;
+      await apiRequest("/owner/appointments/manual", { method: "POST", body: JSON.stringify(payload) }, jwt);
+      await fetchData();
+    },
+    [jwt]
+  );
+
+  const openBooking = (start?: Date) => {
+    const base = start || new Date();
+    const startISO = base.toISOString();
+    const end = new Date(base);
+    end.setMinutes(end.getMinutes() + 60);
+    setBookingStartISO(startISO);
+    setBookingEndISO(end.toISOString());
+    setBookingServiceId(services[0]?.id);
+    const rangeStart = base.toISOString();
+    const rangeEndDate = new Date(base);
+    rangeEndDate.setDate(rangeEndDate.getDate() + 7);
+    setAvailFrom(rangeStart);
+    setAvailTo(rangeEndDate.toISOString());
+    setAvailSlots([]);
+    setBookingVisible(true);
+  };
+
+  const handleSaveBooking = async () => {
+    if (!bookingStartISO || !bookingEndISO || !bookingPhone) {
+      Alert.alert("Missing info", "Please fill start, end, and customer phone.");
+      return;
+    }
+    setBookingSaving(true);
+    try {
+      await createBooking({
+        customerName: bookingName,
+        customerPhone: bookingPhone,
+        serviceId: bookingServiceId,
+        startISO: bookingStartISO,
+        endISO: bookingEndISO,
+        notes: bookingNotes
+      });
+      setBookingVisible(false);
+      setBookingName("");
+      setBookingPhone("");
+      setBookingNotes("");
+    } catch (err) {
+      Alert.alert("Failed", err instanceof Error ? err.message : "Could not save booking");
+    } finally {
+      setBookingSaving(false);
+    }
+  };
+
+  const fetchAvailability = useCallback(async () => {
+    if (!session?.tenant?.key) return;
+    setAvailLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (bookingServiceId) params.set("serviceId", bookingServiceId);
+      if (availFrom) params.set("from", availFrom);
+      if (availTo) params.set("to", availTo);
+      params.set("limit", "20");
+      const data = await apiRequest<{ slots: AvailabilitySlot[] }>(
+        `/public/tenants/${session.tenant.key}/availability?${params.toString()}`,
+        {},
+        undefined
+      );
+      setAvailSlots(data.slots || []);
+    } catch (err) {
+      Alert.alert("Availability error", err instanceof Error ? err.message : "Could not load slots");
+    } finally {
+      setAvailLoading(false);
+    }
+  }, [availFrom, availTo, bookingServiceId, session?.tenant?.key]);
+
   const saveService = useCallback(
     async (service: Partial<ServiceRecord>) => {
       if (!jwt) return services;
@@ -392,7 +548,12 @@ export default function App() {
         fetchCustomerDetail,
         fetchServices: fetchServicesList,
         saveService,
-        deleteService
+        deleteService,
+        calendar,
+        refreshCalendar,
+        saveCalendar,
+        createBooking,
+        openBooking
       }}
     >
       <NavigationContainer>
@@ -441,12 +602,127 @@ export default function App() {
           <Tab.Screen name="Settings" component={SettingsScreen} />
         </Tab.Navigator>
       </NavigationContainer>
+      <Modal transparent visible={bookingVisible} animationType="slide" onRequestClose={() => setBookingVisible(false)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setBookingVisible(false)}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.sectionTitle}>Add booking</Text>
+              <TouchableOpacity onPress={() => setBookingVisible(false)}>
+                <Text style={styles.viewSheetClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={styles.modalContent}>
+              <Text style={styles.formLabel}>Customer name</Text>
+              <TextInput style={styles.input} value={bookingName} onChangeText={setBookingName} placeholder="Customer name" />
+              <Text style={styles.formLabel}>Customer phone</Text>
+              <TextInput
+                style={styles.input}
+                value={bookingPhone}
+                onChangeText={setBookingPhone}
+                placeholder="Phone (used as customer id)"
+              />
+              <Text style={styles.formLabel}>Service</Text>
+              <View style={styles.pillGroup}>
+                {services.map((svc) => (
+                  <TouchableOpacity
+                    key={svc.id}
+                    style={[styles.pillButton, bookingServiceId === svc.id && styles.pillButtonActive]}
+                    onPress={() => setBookingServiceId(svc.id)}
+                  >
+                    <Text style={[styles.pillLabel, bookingServiceId === svc.id && styles.pillLabelActive]}>{svc.name}</Text>
+                  </TouchableOpacity>
+                ))}
+                {services.length === 0 && <Text style={styles.muted}>No services loaded.</Text>}
+              </View>
+              <Text style={styles.formLabel}>Start (ISO)</Text>
+              <TextInput
+                style={styles.input}
+                value={bookingStartISO}
+                onChangeText={setBookingStartISO}
+                placeholder="2025-01-01T09:00:00Z"
+              />
+              <Text style={styles.formLabel}>End (ISO)</Text>
+              <TextInput
+                style={styles.input}
+                value={bookingEndISO}
+                onChangeText={setBookingEndISO}
+                placeholder="2025-01-01T10:00:00Z"
+              />
+              <View style={styles.divider} />
+              <Text style={styles.settingsSubtitle}>Find availability</Text>
+              <Text style={styles.formLabel}>From</Text>
+              <TouchableOpacity style={styles.input} onPress={() => setAvailPicker("from")}>
+                <Text style={styles.pillLabel}>{new Date(availFrom).toDateString()}</Text>
+              </TouchableOpacity>
+              <Text style={styles.formLabel}>To</Text>
+              <TouchableOpacity style={styles.input} onPress={() => setAvailPicker("to")}>
+                <Text style={styles.pillLabel}>{new Date(availTo).toDateString()}</Text>
+              </TouchableOpacity>
+              {availPicker && (
+                <View style={styles.calendarWrapper}>
+                  <MonthCalendar
+                    current={availPicker === "from" ? availFrom.slice(0, 10) : availTo.slice(0, 10)}
+                    onDayPress={(day) => {
+                      const base = new Date(day.dateString);
+                      base.setHours(0, 0, 0, 0);
+                      const iso = base.toISOString();
+                      if (availPicker === "from") {
+                        setAvailFrom(iso);
+                      } else {
+                        setAvailTo(iso);
+                      }
+                      setAvailPicker(null);
+                    }}
+                    markedDates={{}}
+                    firstDay={0}
+                    hideExtraDays
+                  />
+                </View>
+              )}
+              <TouchableOpacity style={[styles.primaryButton, { marginTop: 10 }]} onPress={fetchAvailability} disabled={availLoading}>
+                {availLoading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Find slots</Text>}
+              </TouchableOpacity>
+              <View style={styles.pillGroup}>
+                {availSlots.map((slot) => (
+                  <TouchableOpacity
+                    key={slot.startISO}
+                    style={[
+                      styles.pillButton,
+                      bookingStartISO === slot.startISO && bookingEndISO === slot.endISO && styles.pillButtonActive
+                    ]}
+                    onPress={() => {
+                      setBookingStartISO(slot.startISO);
+                      setBookingEndISO(slot.endISO);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.pillLabel,
+                        bookingStartISO === slot.startISO && bookingEndISO === slot.endISO && styles.pillLabelActive
+                      ]}
+                    >
+                      {slot.buttonLabel || slot.displayLabel}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {!availSlots.length && !availLoading && <Text style={styles.muted}>No slots yet. Adjust range and search.</Text>}
+              </View>
+              <Text style={styles.formLabel}>Notes</Text>
+              <TextInput style={[styles.input, styles.textArea]} multiline value={bookingNotes} onChangeText={setBookingNotes} />
+
+              <TouchableOpacity style={[styles.primaryButton, { marginTop: 16 }]} onPress={handleSaveBooking} disabled={bookingSaving}>
+                {bookingSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Save booking</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </OwnerContext.Provider>
   );
 }
 
 function HomeScreen() {
-  const { session, analytics, pending, appointments, loading, error, actionCustomer, refresh, resolveBooking, priceFormatter, logout } =
+  const { session, analytics, pending, appointments, loading, error, actionCustomer, refresh, resolveBooking, priceFormatter, logout, openBooking } =
     useOwner();
 
   return (
@@ -534,12 +810,16 @@ function HomeScreen() {
           )}
         </View>
       </ScrollView>
+      <TouchableOpacity style={styles.fab} onPress={() => openBooking()}>
+        <Ionicons name="add" size={22} color="#fff" />
+        <Text style={styles.fabText}>Booking</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 function CalendarScreen() {
-  const { fetchAppointmentsByRange, pending } = useOwner();
+  const { fetchAppointmentsByRange, pending, openBooking } = useOwner();
   const [view, setView] = useState<"day" | "week" | "month">("month");
   const [items, setItems] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -860,7 +1140,11 @@ function CalendarScreen() {
                         <View style={styles.weekTimeCol}>
                           <Text style={styles.weekTimeText}>{`${hour.toString().padStart(2, "0")}:00`}</Text>
                         </View>
-                        <View style={styles.dayCell}>
+                        <TouchableOpacity
+                          style={styles.dayCell}
+                          activeOpacity={0.7}
+                            onPress={() => openBooking(new Date(`${selectedDate}T${hour.toString().padStart(2, "0")}:00:00`))}
+                        >
                           {hourEvents.length === 0 ? null : (
                             hourEvents.map((event) => (
                               <View
@@ -882,7 +1166,7 @@ function CalendarScreen() {
                               </View>
                             ))
                           )}
-                        </View>
+                        </TouchableOpacity>
                       </View>
                     );
                   })}
@@ -914,9 +1198,11 @@ function CalendarScreen() {
                         const events = eventsByWeekDay[key] || [];
                         const hourEvents = events.filter((evt) => new Date(evt.start).getHours() === hour);
                         return (
-                          <View
+                          <TouchableOpacity
                             key={key + hour}
                             style={[styles.weekCell, idx < weekDays.length - 1 && styles.weekCellDivider]}
+                            activeOpacity={0.7}
+                            onPress={() => openBooking(new Date(`${key}T${hour.toString().padStart(2, "0")}:00:00`))}
                           >
                             {hourEvents.map((event) => (
                               <View
@@ -936,7 +1222,7 @@ function CalendarScreen() {
                                 </Text>
                               </View>
                             ))}
-                          </View>
+                          </TouchableOpacity>
                         );
                       })}
                     </View>
@@ -980,12 +1266,16 @@ function CalendarScreen() {
           </TouchableOpacity>
         </Modal>
       </ScrollView>
+      <TouchableOpacity style={styles.fab} onPress={() => openBooking()}>
+        <Ionicons name="add" size={22} color="#fff" />
+        <Text style={styles.fabText}>Booking</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 function CustomersScreen() {
-  const { customers, customersHasMore, fetchCustomers, fetchCustomerDetail } = useOwner();
+  const { customers, customersHasMore, fetchCustomers, fetchCustomerDetail, openBooking } = useOwner();
   const HISTORY_PAGE_SIZE = 10;
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<CustomerRecord[]>(customers);
@@ -1199,12 +1489,16 @@ function CustomersScreen() {
           </View>
         </View>
       </Modal>
+      <TouchableOpacity style={styles.fab} onPress={() => openBooking()}>
+        <Ionicons name="add" size={22} color="#fff" />
+        <Text style={styles.fabText}>Booking</Text>
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
 
 function ServicesScreen() {
-  const { services, fetchServices, saveService, deleteService } = useOwner();
+  const { services, fetchServices, saveService, deleteService, openBooking } = useOwner();
   const { control, handleSubmit, reset } = useForm<ServiceRecord>({ defaultValues: EMPTY_SERVICE });
   const [modalVisible, setModalVisible] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -1276,6 +1570,9 @@ function ServicesScreen() {
       >
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Service catalog</Text>
+          <TouchableOpacity style={styles.ghostButtonSmall} onPress={() => openModal()} disabled={busy}>
+            <Text style={styles.ghostButtonText}>Add service</Text>
+          </TouchableOpacity>
         </View>
         {!services.length && <Text style={styles.muted}>No services configured.</Text>}
         {services.map((service) => (
@@ -1297,9 +1594,9 @@ function ServicesScreen() {
           </View>
         ))}
       </ScrollView>
-      <TouchableOpacity style={styles.fab} onPress={() => openModal()} disabled={busy}>
+      <TouchableOpacity style={styles.fab} onPress={() => openBooking()}>
         <Ionicons name="add" size={22} color="#fff" />
-        <Text style={styles.fabText}>Add service</Text>
+        <Text style={styles.fabText}>Booking</Text>
       </TouchableOpacity>
 
       <Modal visible={modalVisible} animationType="slide" onRequestClose={() => setModalVisible(false)} transparent>
@@ -1402,12 +1699,251 @@ function ServicesScreen() {
   );
 }
 
+const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const defaultCalendar = (): OwnerCalendar => ({
+  timezone: "UTC",
+  capacity: 1,
+  lookaheadDays: 30,
+  rules: [],
+  blocks: []
+});
+
 function SettingsScreen() {
+  const { session, calendar, refreshCalendar, saveCalendar, logout } = useOwner();
+  const [draft, setDraft] = useState<OwnerCalendar>(calendar || defaultCalendar());
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setDraft(calendar || defaultCalendar());
+  }, [calendar]);
+
+  useEffect(() => {
+    if (!calendar) {
+      (async () => {
+        setLoading(true);
+        try {
+          await refreshCalendar();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to load calendar");
+        } finally {
+          setLoading(false);
+        }
+      })();
+    }
+  }, [calendar, refreshCalendar]);
+
+  const updateField = (field: keyof OwnerCalendar, value: any) => {
+    setDraft((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const updateRule = (idx: number, patch: Partial<CalendarRule>) => {
+    setDraft((prev) => {
+      const rules = prev.rules.slice();
+      rules[idx] = { ...rules[idx], ...patch };
+      return { ...prev, rules };
+    });
+  };
+
+  const addRule = () =>
+    setDraft((prev) => ({
+      ...prev,
+      rules: [...prev.rules, { dayOfWeek: 1, start: "09:00", end: "17:00", capacity: null }]
+    }));
+
+  const removeRule = (idx: number) =>
+    setDraft((prev) => ({
+      ...prev,
+      rules: prev.rules.filter((_, i) => i !== idx)
+    }));
+
+  const addBlock = () =>
+    setDraft((prev) => ({
+      ...prev,
+      blocks: [...prev.blocks, { startISO: "", endISO: "", reason: "" }]
+    }));
+
+  const updateBlock = (idx: number, patch: Partial<CalendarBlock>) => {
+    setDraft((prev) => {
+      const blocks = prev.blocks.slice();
+      blocks[idx] = { ...blocks[idx], ...patch };
+      return { ...prev, blocks };
+    });
+  };
+
+  const removeBlock = (idx: number) =>
+    setDraft((prev) => ({
+      ...prev,
+      blocks: prev.blocks.filter((_, i) => i !== idx)
+    }));
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await saveCalendar({
+        ...draft,
+        capacity: Number(draft.capacity) || 1,
+        lookaheadDays: Number(draft.lookaheadDays) || 30,
+        rules: draft.rules.map((r) => ({
+          dayOfWeek: Number(r.dayOfWeek) || 0,
+          start: r.start,
+          end: r.end,
+          capacity: r.capacity == null || r.capacity === "" ? null : Number(r.capacity)
+        })),
+        blocks: draft.blocks.filter((b) => b.startISO && b.endISO)
+      });
+      Alert.alert("Saved", "Calendar settings updated.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.placeholder}>
-        <Text style={styles.placeholderText}>Settings & notifications coming soon.</Text>
-      </View>
+      <ScrollView contentContainerStyle={[styles.section, styles.settingsContainer]}>
+        <Text style={styles.sectionTitle}>Settings</Text>
+        <Text style={styles.muted}>Manage calendar and account.</Text>
+
+        <View style={styles.settingsCard}>
+          <View style={styles.settingsHeaderRow}>
+            <Text style={styles.settingsTitle}>Calendar settings</Text>
+            <TouchableOpacity onPress={handleSave} disabled={saving || loading}>
+              {saving ? <ActivityIndicator /> : <Text style={styles.settingsSave}>Save</Text>}
+            </TouchableOpacity>
+          </View>
+          {loading ? <ActivityIndicator color="#0ea5e9" /> : null}
+          {error && <Text style={styles.error}>{error}</Text>}
+          <View style={styles.settingsRow}>
+            <Text style={styles.formLabel}>Timezone</Text>
+            <TextInput
+              style={styles.input}
+              value={draft.timezone}
+              onChangeText={(t) => updateField("timezone", t)}
+              placeholder="e.g. America/New_York"
+            />
+          </View>
+          <View style={styles.settingsRow}>
+            <Text style={styles.formLabel}>Lookahead days</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={String(draft.lookaheadDays)}
+              onChangeText={(t) => updateField("lookaheadDays", Number(t) || 0)}
+            />
+          </View>
+          <View style={styles.settingsRow}>
+            <Text style={styles.formLabel}>Max concurrent services</Text>
+            <TextInput
+              style={styles.input}
+              keyboardType="numeric"
+              value={String(draft.capacity)}
+              onChangeText={(t) => updateField("capacity", Number(t) || 1)}
+            />
+          </View>
+
+          <View style={styles.divider} />
+          <View style={styles.settingsHeaderRow}>
+            <Text style={styles.settingsSubtitle}>Weekly working hours</Text>
+            <TouchableOpacity onPress={addRule}>
+              <Text style={styles.settingsAdd}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          {draft.rules.length === 0 && <Text style={styles.muted}>No working hours yet.</Text>}
+          {draft.rules.map((rule, idx) => (
+            <View key={`rule-${idx}`} style={styles.ruleCard}>
+              <View style={styles.ruleRow}>
+                <Text style={styles.formLabel}>Day</Text>
+                <TouchableOpacity
+                  style={styles.dayChip}
+                  onPress={() => updateRule(idx, { dayOfWeek: (rule.dayOfWeek + 1) % 7 })}
+                >
+                  <Text style={styles.dayChipText}>{dayLabels[rule.dayOfWeek % 7]}</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.ruleRow}>
+                <Text style={styles.formLabel}>Start</Text>
+                <TextInput
+                  style={[styles.input, styles.ruleInput]}
+                  value={rule.start}
+                  onChangeText={(t) => updateRule(idx, { start: t })}
+                  placeholder="09:00"
+                />
+              </View>
+              <View style={styles.ruleRow}>
+                <Text style={styles.formLabel}>End</Text>
+                <TextInput
+                  style={[styles.input, styles.ruleInput]}
+                  value={rule.end}
+                  onChangeText={(t) => updateRule(idx, { end: t })}
+                  placeholder="17:00"
+                />
+              </View>
+              <View style={styles.ruleRow}>
+                <Text style={styles.formLabel}>Capacity</Text>
+                <TextInput
+                  style={[styles.input, styles.ruleInput]}
+                  keyboardType="numeric"
+                  value={rule.capacity == null ? "" : String(rule.capacity)}
+                  onChangeText={(t) => updateRule(idx, { capacity: t === "" ? null : Number(t) || 1 })}
+                  placeholder="Optional"
+                />
+              </View>
+              <TouchableOpacity onPress={() => removeRule(idx)}>
+                <Text style={styles.settingsRemove}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          <View style={styles.divider} />
+          <View style={styles.settingsHeaderRow}>
+            <Text style={styles.settingsSubtitle}>Blocked times</Text>
+            <TouchableOpacity onPress={addBlock}>
+              <Text style={styles.settingsAdd}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          {draft.blocks.length === 0 && <Text style={styles.muted}>No blocked times.</Text>}
+          {draft.blocks.map((block, idx) => (
+            <View key={`block-${idx}`} style={styles.ruleCard}>
+              <Text style={styles.formLabel}>Start (ISO)</Text>
+              <TextInput
+                style={styles.input}
+                value={block.startISO}
+                onChangeText={(t) => updateBlock(idx, { startISO: t })}
+                placeholder="2025-01-01T09:00:00Z"
+              />
+              <Text style={styles.formLabel}>End (ISO)</Text>
+              <TextInput
+                style={styles.input}
+                value={block.endISO}
+                onChangeText={(t) => updateBlock(idx, { endISO: t })}
+                placeholder="2025-01-01T12:00:00Z"
+              />
+              <Text style={styles.formLabel}>Reason</Text>
+              <TextInput
+                style={styles.input}
+                value={block.reason || ""}
+                onChangeText={(t) => updateBlock(idx, { reason: t })}
+                placeholder="Optional"
+              />
+              <TouchableOpacity onPress={() => removeBlock(idx)}>
+                <Text style={styles.settingsRemove}>Remove</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
+        </View>
+
+        <View style={styles.settingsCard}>
+          <Text style={styles.settingsTitle}>Account</Text>
+          <Text style={styles.muted}>{session?.tenant?.name || "Tenant"} · {session?.tenant?.key || ""}</Text>
+          <TouchableOpacity style={[styles.primaryButton, { marginTop: 12 }]} onPress={logout}>
+            <Text style={styles.primaryButtonText}>Sign out</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -1638,6 +2174,11 @@ const styles = StyleSheet.create({
   calendarEventMeta: {
     color: "#64748b",
     marginTop: 2
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#e2e8f0",
+    marginVertical: 10
   },
   calendarArrow: {
     fontSize: 18,
@@ -2021,6 +2562,77 @@ const styles = StyleSheet.create({
     borderColor: "#e2e8f0",
     padding: 12,
     marginTop: 6
+  },
+  settingsContainer: {
+    gap: 12
+  },
+  settingsCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 14,
+    gap: 10
+  },
+  settingsHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  settingsTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0f172a"
+  },
+  settingsSubtitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#0f172a"
+  },
+  settingsSave: {
+    color: "#0ea5e9",
+    fontWeight: "700"
+  },
+  settingsAdd: {
+    color: "#0ea5e9",
+    fontWeight: "700"
+  },
+  settingsRemove: {
+    color: "#be123c",
+    fontWeight: "600",
+    marginTop: 8
+  },
+  settingsRow: {
+    marginTop: 6
+  },
+  ruleCard: {
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 8,
+    backgroundColor: "#f8fafc",
+    gap: 6
+  },
+  ruleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8
+  },
+  ruleInput: {
+    flex: 1,
+    height: 44
+  },
+  dayChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#e2e8f0"
+  },
+  dayChipText: {
+    fontWeight: "700",
+    color: "#0f172a"
   }
 });
   const fetchCustomers = async (queryText = "", offset = 0, limit = CUSTOMER_PAGE_SIZE) => {

@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 import { getTenantByKey } from "../tenants/tenantManager.js";
 import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
-import { listAppointmentsForTenant, listAppointmentsForCustomer } from "../services/appointmentStore.js";
+import { listAppointmentsForTenant, listAppointmentsForCustomer, createAppointment } from "../services/appointmentStore.js";
 import { listCustomersForTenant, getCustomerDetail } from "../services/customerStore.js";
 import { listServicesForTenantKey, updateTenant } from "../tenants/tenantManager.js";
 import { validateOwnerServiceUpdate } from "../tenants/tenantValidation.js";
@@ -12,6 +12,8 @@ import { ownerAuth, signOwnerToken } from "../middleware/ownerAuth.js";
 import { generateCustomersCsv, generateAppointmentsCsv } from "../services/csvExport.js";
 import { getOwnerAnalytics } from "../services/analyticsService.js";
 import { getCalendar, upsertCalendar } from "../services/calendarService.js";
+import { upsertCustomer } from "../services/customerStore.js";
+import { v4 as uuidv4 } from "uuid";
 
 const router = express.Router();
 
@@ -220,6 +222,56 @@ router.post("/pending/:customerId/approve", async (req, res) => {
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
+});
+
+router.post("/appointments/manual", async (req, res) => {
+  const { customerName, customerPhone, serviceId, serviceName, startISO, endISO, notes } = req.body || {};
+  if (!startISO) return res.status(400).json({ error: "startISO is required" });
+  const start = new Date(startISO);
+  if (Number.isNaN(start.getTime())) return res.status(400).json({ error: "Invalid startISO" });
+  let end = endISO ? new Date(endISO) : null;
+  if (end && Number.isNaN(end.getTime())) return res.status(400).json({ error: "Invalid endISO" });
+  if (!end) {
+    end = new Date(start);
+    end.setMinutes(end.getMinutes() + 45);
+  }
+  const tenantKey = req.owner.tenantKey;
+  const customerId = customerPhone || uuidv4();
+  const slotLabel = new Date(startISO).toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: req.owner?.calendar?.timezone || "UTC"
+  });
+
+  await upsertCustomer({
+    id: customerId,
+    tenantKey,
+    displayName: customerName || null,
+    phone: customerPhone || null
+  });
+
+  await createAppointment({
+    tenantKey,
+    customerId,
+    serviceId: serviceId || null,
+    serviceName: serviceName || null,
+    startISO: start.toISOString(),
+    endISO: end.toISOString(),
+    slotLabel,
+    notes: notes || null
+  });
+
+  res.json({
+    appointment: {
+      customerId,
+      serviceId: serviceId || null,
+      serviceName: serviceName || null,
+      start_iso: start.toISOString(),
+      end_iso: end.toISOString(),
+      slot_label: slotLabel,
+      notes: notes || null
+    }
+  });
 });
 
 router.post("/pending/:customerId/reject", async (req, res) => {
