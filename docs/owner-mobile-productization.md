@@ -159,6 +159,7 @@ Implementation details:
 Acceptance checks:
 - Excessive requests are blocked and return a clear message.
 - Cooldown is respected per phone + IP.
+Status: complete
 
 ## 9) Secure secrets and config for production (backend)
 

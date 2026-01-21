@@ -17,6 +17,7 @@ import { listTenantsForPhone, getOwnerTenantLink, upsertOwner, linkOwnerToTenant
 import { createOwnerOtp, validateOwnerPreauth, verifyOwnerOtp } from "../services/ownerOtpStore.js";
 import { sendOtpSms } from "../services/notificationService.js";
 import { createOwnerRefreshToken, rotateOwnerRefreshToken } from "../services/ownerSessionStore.js";
+import { createRateLimiter, ipRateLimiter } from "../middleware/rateLimit.js";
 import { v4 as uuidv4 } from "uuid";
 
 const router = express.Router();
@@ -38,6 +39,34 @@ function normalizePhone(raw) {
 function isValidPhone(phone) {
   return /^\+?[1-9]\d{7,14}$/.test(phone);
 }
+
+const otpRequestIpLimiter = ipRateLimiter({
+  windowMs: Number(process.env.OWNER_OTP_WINDOW_MS || 10 * 60 * 1000),
+  max: Number(process.env.OWNER_OTP_IP_LIMIT || 5)
+});
+const otpRequestPhoneLimiter = createRateLimiter({
+  windowMs: Number(process.env.OWNER_OTP_WINDOW_MS || 10 * 60 * 1000),
+  max: Number(process.env.OWNER_OTP_PHONE_LIMIT || 3),
+  keyGenerator: (req) => normalizePhone(req.body?.phone)
+});
+const otpVerifyIpLimiter = ipRateLimiter({
+  windowMs: Number(process.env.OWNER_OTP_VERIFY_WINDOW_MS || 10 * 60 * 1000),
+  max: Number(process.env.OWNER_OTP_VERIFY_IP_LIMIT || 10)
+});
+const otpVerifyPhoneLimiter = createRateLimiter({
+  windowMs: Number(process.env.OWNER_OTP_VERIFY_WINDOW_MS || 10 * 60 * 1000),
+  max: Number(process.env.OWNER_OTP_VERIFY_PHONE_LIMIT || 5),
+  keyGenerator: (req) => normalizePhone(req.body?.phone)
+});
+const registerIpLimiter = ipRateLimiter({
+  windowMs: Number(process.env.OWNER_REGISTER_WINDOW_MS || 60 * 60 * 1000),
+  max: Number(process.env.OWNER_REGISTER_IP_LIMIT || 3)
+});
+const registerPhoneLimiter = createRateLimiter({
+  windowMs: Number(process.env.OWNER_REGISTER_WINDOW_MS || 60 * 60 * 1000),
+  max: Number(process.env.OWNER_REGISTER_PHONE_LIMIT || 2),
+  keyGenerator: (req) => normalizePhone(req.body?.phone)
+});
 
 function normalizeCalendarPayload(payload = {}) {
   const timezone = String(payload.timezone || "UTC").trim() || "UTC";
@@ -103,7 +132,7 @@ router.post("/login", async (req, res) => {
   });
 });
 
-router.post("/register", async (req, res) => {
+router.post("/register", registerIpLimiter, registerPhoneLimiter, async (req, res) => {
   const displayName = String(req.body?.displayName || "").trim();
   const ownerName = String(req.body?.ownerName || "").trim();
   const phone = normalizePhone(req.body?.phone);
@@ -147,7 +176,7 @@ router.post("/register", async (req, res) => {
   }
 });
 
-router.post("/auth/request-otp", async (req, res) => {
+router.post("/auth/request-otp", otpRequestIpLimiter, otpRequestPhoneLimiter, async (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const tenantKey = req.body?.tenantKey ? String(req.body.tenantKey).trim() : "";
   if (!phone || !isValidPhone(phone)) {
@@ -182,7 +211,7 @@ router.post("/auth/request-otp", async (req, res) => {
   });
 });
 
-router.post("/auth/verify-otp", async (req, res) => {
+router.post("/auth/verify-otp", otpVerifyIpLimiter, otpVerifyPhoneLimiter, async (req, res) => {
   const phone = normalizePhone(req.body?.phone);
   const tenantKey = req.body?.tenantKey ? String(req.body.tenantKey).trim() : "";
   const code = req.body?.code ? String(req.body.code).trim() : "";
