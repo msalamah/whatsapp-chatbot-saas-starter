@@ -38,6 +38,7 @@ const EMPTY_SERVICE: ServiceRecord = {
 
 type OwnerSession = {
   token: string;
+  refreshToken?: string;
   tenant: {
     key: string;
     name: string;
@@ -117,12 +118,22 @@ type RegisterServiceDraft = {
 
 const STORAGE_KEY = "owner-mobile-session";
 const PHONE_KEY = "owner-mobile-phone";
+const REFRESH_KEY = "owner-mobile-refresh";
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL as string | undefined) ||
   (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined) ||
   "http://localhost:3000";
 
 async function apiRequest<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+  return requestWithRetry<T>(path, options, token, true);
+}
+
+let refreshHandler: (() => Promise<string | null>) | null = null;
+function setRefreshHandler(handler: (() => Promise<string | null>) | null) {
+  refreshHandler = handler;
+}
+
+async function requestWithRetry<T>(path: string, options: RequestInit, token?: string, allowRefresh = true): Promise<T> {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers || {})
@@ -145,6 +156,12 @@ async function apiRequest<T>(path: string, options: RequestInit = {}, token?: st
   }
 
   if (!response.ok) {
+    if (response.status === 401 && token && allowRefresh && refreshHandler) {
+      const nextToken = await refreshHandler();
+      if (nextToken) {
+        return requestWithRetry<T>(path, options, nextToken, false);
+      }
+    }
     const message = typeof data === "string" ? data : data?.error || response.statusText;
     throw new Error(message);
   }
@@ -233,6 +250,7 @@ export default function App() {
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
   const [session, setSession] = useState<OwnerSession | null>(null);
   const [jwt, setJwt] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingBooking[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -271,6 +289,11 @@ export default function App() {
         }
       })
       .catch(() => undefined);
+    SecureStore.getItemAsync(REFRESH_KEY)
+      .then((stored) => {
+        if (stored) setRefreshToken(stored);
+      })
+      .catch(() => undefined);
     SecureStore.getItemAsync(PHONE_KEY)
       .then((stored) => {
         if (stored) setLoginPhone(stored);
@@ -295,6 +318,45 @@ export default function App() {
     }
     fetchData();
   }, [jwt]);
+
+  const refreshSession = useCallback(async () => {
+    if (!refreshToken) return null;
+    try {
+      const response = await fetch(`${API_BASE}/owner/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken })
+      });
+      const text = await response.text();
+      let data: any = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+      if (!response.ok) {
+        return null;
+      }
+      const credentials = data as OwnerSession;
+      setSession(credentials);
+      setJwt(credentials.token);
+      if (credentials.refreshToken) {
+        setRefreshToken(credentials.refreshToken);
+        await SecureStore.setItemAsync(REFRESH_KEY, credentials.refreshToken);
+      }
+      await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(credentials));
+      return credentials.token;
+    } catch {
+      return null;
+    }
+  }, [refreshToken]);
+
+  useEffect(() => {
+    setRefreshHandler(refreshSession);
+    return () => setRefreshHandler(null);
+  }, [refreshSession]);
 
   const fetchData = async () => {
     if (!jwt) return;
@@ -433,6 +495,10 @@ export default function App() {
       const credentials = data as OwnerSession;
       setSession(credentials);
       setJwt(credentials.token);
+      if (credentials.refreshToken) {
+        setRefreshToken(credentials.refreshToken);
+        await SecureStore.setItemAsync(REFRESH_KEY, credentials.refreshToken);
+      }
       await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(credentials));
       resetLoginState();
     } catch (err) {
@@ -508,8 +574,10 @@ export default function App() {
 
   const handleLogout = async () => {
     await SecureStore.deleteItemAsync(STORAGE_KEY);
+    await SecureStore.deleteItemAsync(REFRESH_KEY);
     setSession(null);
     setJwt(null);
+    setRefreshToken(null);
     setPending([]);
     setAnalytics(null);
     setAppointments([]);

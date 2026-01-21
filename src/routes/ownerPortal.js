@@ -16,6 +16,7 @@ import { upsertCustomer } from "../services/customerStore.js";
 import { listTenantsForPhone, getOwnerTenantLink, upsertOwner, linkOwnerToTenant } from "../services/ownerStore.js";
 import { createOwnerOtp, validateOwnerPreauth, verifyOwnerOtp } from "../services/ownerOtpStore.js";
 import { sendOtpSms } from "../services/notificationService.js";
+import { createOwnerRefreshToken, rotateOwnerRefreshToken } from "../services/ownerSessionStore.js";
 import { v4 as uuidv4 } from "uuid";
 
 const router = express.Router();
@@ -208,14 +209,50 @@ router.post("/auth/verify-otp", async (req, res) => {
     return res.status(404).json({ error: "Tenant not found" });
   }
   const jwt = signOwnerToken({ tenantKey, ownerId: link.owner_id, role: link.role || "owner" });
+  const refresh = await createOwnerRefreshToken({
+    ownerId: link.owner_id,
+    tenantKey,
+    role: link.role || "owner"
+  });
   return res.json({
     token: jwt,
+    refreshToken: refresh.token,
     tenant: {
       key: tenant.key,
       name: tenant.displayName,
       calendarLink: buildCalendarLink(tenant)
     }
   });
+});
+
+router.post("/auth/refresh", async (req, res) => {
+  const refreshToken = req.body?.refreshToken ? String(req.body.refreshToken).trim() : "";
+  if (!refreshToken) {
+    return res.status(400).json({ error: "refreshToken is required" });
+  }
+  try {
+    const rotated = await rotateOwnerRefreshToken({ token: refreshToken });
+    const tenant = await getTenantByKey(rotated.tenantKey);
+    if (!tenant) {
+      return res.status(404).json({ error: "Tenant not found" });
+    }
+    const jwt = signOwnerToken({
+      tenantKey: rotated.tenantKey,
+      ownerId: rotated.ownerId,
+      role: rotated.role || "owner"
+    });
+    return res.json({
+      token: jwt,
+      refreshToken: rotated.token,
+      tenant: {
+        key: tenant.key,
+        name: tenant.displayName,
+        calendarLink: buildCalendarLink(tenant)
+      }
+    });
+  } catch (err) {
+    return res.status(401).json({ error: err.message || "Refresh failed" });
+  }
 });
 
 router.get("/tenants", async (req, res) => {

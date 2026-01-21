@@ -143,6 +143,7 @@ Web counterpart:
 Acceptance checks:
 - Expired JWT triggers refresh without user interaction.
 - Refresh rotation prevents replay of old refresh tokens.
+Status: complete
 
 ## 8) Rate limiting and abuse protection (backend)
 
