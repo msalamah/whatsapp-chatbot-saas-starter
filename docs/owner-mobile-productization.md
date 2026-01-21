@@ -29,6 +29,7 @@ Acceptance checks:
 - A first-time user can register from the app with no admin tooling.
 - Registration returns an OTP challenge that leads to successful login.
 - The resulting tenant has a calendar default + services seeded when provided.
+Status: complete
 
 ## 2) OTP-based owner login (app)
 
@@ -92,6 +93,7 @@ Implementation details:
 Acceptance checks:
 - Successful registration creates tenant + owner identity and returns OTP challenge.
 - Duplicate phone rejects with 409 and a friendly error.
+Status: complete
 
 ## 5) Owner identity model + tenant mapping (backend)
 

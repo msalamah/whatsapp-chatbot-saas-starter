@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getTenantByKey } from "../tenants/tenantManager.js";
+import { getTenantByKey, registerOwnerTenant } from "../tenants/tenantManager.js";
 import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
 import { listAppointmentsForTenant, listAppointmentsForCustomer, createAppointment } from "../services/appointmentStore.js";
@@ -13,7 +13,7 @@ import { generateCustomersCsv, generateAppointmentsCsv } from "../services/csvEx
 import { getOwnerAnalytics } from "../services/analyticsService.js";
 import { getCalendar, upsertCalendar } from "../services/calendarService.js";
 import { upsertCustomer } from "../services/customerStore.js";
-import { listTenantsForPhone, getOwnerTenantLink } from "../services/ownerStore.js";
+import { listTenantsForPhone, getOwnerTenantLink, upsertOwner, linkOwnerToTenant } from "../services/ownerStore.js";
 import { createOwnerOtp, validateOwnerPreauth, verifyOwnerOtp } from "../services/ownerOtpStore.js";
 import { sendOtpSms } from "../services/notificationService.js";
 import { v4 as uuidv4 } from "uuid";
@@ -100,6 +100,50 @@ router.post("/login", async (req, res) => {
       calendarLink: buildCalendarLink(tenant)
     }
   });
+});
+
+router.post("/register", async (req, res) => {
+  const displayName = String(req.body?.displayName || "").trim();
+  const ownerName = String(req.body?.ownerName || "").trim();
+  const phone = normalizePhone(req.body?.phone);
+  const email = req.body?.email ? String(req.body.email).trim() : null;
+  const timezone = req.body?.timezone ? String(req.body.timezone).trim() : "UTC";
+  const services = Array.isArray(req.body?.services) ? req.body.services : [];
+
+  if (!displayName || !ownerName || !phone) {
+    return res.status(400).json({ error: "displayName, ownerName, and phone are required" });
+  }
+  if (!isValidPhone(phone)) {
+    return res.status(400).json({ error: "Valid phone is required" });
+  }
+
+  const existingTenants = await listTenantsForPhone(phone);
+  if (existingTenants.length) {
+    return res.status(409).json({ error: "Phone already registered" });
+  }
+
+  try {
+    const tenantKey = await registerOwnerTenant({ displayName, timezone, services });
+    const owner = await upsertOwner({
+      phone,
+      email,
+      displayName: ownerName
+    });
+    await linkOwnerToTenant({ ownerId: owner.id, tenantKey, role: "owner" });
+    await upsertCalendar(tenantKey, { timezone, capacity: 1, lookaheadDays: 30, rules: [], blocks: [] });
+
+    const otp = await createOwnerOtp({ phone, tenantKey });
+    await sendOtpSms({ to: phone, code: otp.code });
+
+    return res.json({
+      status: "sent",
+      tenantKey,
+      expiresAt: otp.expiresAt,
+      preauthToken: otp.preauthToken
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "Failed to register owner" });
+  }
 });
 
 router.post("/auth/request-otp", async (req, res) => {

@@ -136,6 +136,22 @@ export async function registerTenant({ displayName, wabaToken, phoneNumberId, gr
   return tenantKey;
 }
 
+export async function registerOwnerTenant({ displayName, timezone, services = [] }) {
+  if (!displayName) throw new Error("displayName is required");
+  const tenantKey = (displayName || "tenant").toLowerCase().replace(/\W+/g, "-") + "-" + uuidv4().slice(0, 8);
+  const calendarPayload = ensureCalendarDefaults({ timezone });
+  const ownerToken = generateOwnerToken();
+  await query(
+    `INSERT INTO tenants (key, display_name, waba_token, phone_number_id, graph_version, calendar, owner_portal_token)
+     VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+    [tenantKey, displayName, "", null, "v20.0", JSON.stringify(calendarPayload), ownerToken]
+  );
+  if (Array.isArray(services) && services.length) {
+    await replaceServices(tenantKey, services);
+  }
+  return tenantKey;
+}
+
 export async function updateTenant(key, updates = {}) {
   if (!key) throw new Error("tenant key is required");
   const fields = [];

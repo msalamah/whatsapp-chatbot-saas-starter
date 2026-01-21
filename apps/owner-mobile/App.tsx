@@ -108,6 +108,13 @@ type TenantOption = {
   name: string;
 };
 
+type RegisterServiceDraft = {
+  name: string;
+  durationMinutes: string;
+  price: string;
+  currency: string;
+};
+
 const STORAGE_KEY = "owner-mobile-session";
 const PHONE_KEY = "owner-mobile-phone";
 const API_BASE =
@@ -203,6 +210,19 @@ function useOwner() {
 }
 
 export default function App() {
+  const [registerMode, setRegisterMode] = useState(false);
+  const [registerBusinessName, setRegisterBusinessName] = useState("");
+  const [registerOwnerName, setRegisterOwnerName] = useState("");
+  const [registerPhone, setRegisterPhone] = useState("");
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerTimezone, setRegisterTimezone] = useState(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    } catch {
+      return "UTC";
+    }
+  });
+  const [registerServices, setRegisterServices] = useState<RegisterServiceDraft[]>([]);
   const [loginPhone, setLoginPhone] = useState("");
   const [loginTenantKey, setLoginTenantKey] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -313,6 +333,15 @@ export default function App() {
     setError(null);
   };
 
+  const resetRegisterState = () => {
+    setRegisterBusinessName("");
+    setRegisterOwnerName("");
+    setRegisterPhone("");
+    setRegisterEmail("");
+    setRegisterServices([]);
+    setError(null);
+  };
+
   const requestOtp = async (targetTenantKey?: string) => {
     const phone = loginPhone.trim();
     const resolvedTenantKey = (targetTenantKey || loginTenantKey || "").trim();
@@ -408,6 +437,70 @@ export default function App() {
       resetLoginState();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Verification failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    const phone = registerPhone.trim();
+    if (!registerBusinessName.trim() || !registerOwnerName.trim() || !phone) {
+      setError("Business name, owner name, and phone are required");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const services = registerServices
+        .filter((svc) => svc.name.trim())
+        .map((svc) => {
+          const duration = Number(svc.durationMinutes) || 30;
+          const price = Number(svc.price) || 0;
+          return {
+            name: svc.name.trim(),
+            minMinutes: duration,
+            maxMinutes: duration,
+            price,
+            currency: svc.currency.trim() || "USD",
+            description: ""
+          };
+        });
+      const response = await fetch(`${API_BASE}/owner/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          displayName: registerBusinessName.trim(),
+          ownerName: registerOwnerName.trim(),
+          phone,
+          email: registerEmail.trim() || undefined,
+          timezone: registerTimezone.trim() || undefined,
+          services: services.length ? services : undefined
+        })
+      });
+      const text = await response.text();
+      let data: any = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+      if (!response.ok) {
+        const message = typeof data === "string" ? data : data?.error || response.statusText;
+        throw new Error(message);
+      }
+      setLoginPhone(phone);
+      setLoginTenantKey(data?.tenantKey || "");
+      setOtpSent(true);
+      setOtpTenantKey(data?.tenantKey || "");
+      setOtpExpiresAt(data?.expiresAt || null);
+      setOtpCooldown(30);
+      await SecureStore.setItemAsync(PHONE_KEY, phone);
+      setRegisterMode(false);
+      resetRegisterState();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
       setLoading(false);
     }
@@ -613,7 +706,7 @@ export default function App() {
         <StatusBar style="dark" />
         <View style={styles.container}>
           <Text style={styles.title}>Owner login</Text>
-          {!otpSent ? (
+          {!otpSent && !registerMode ? (
             <>
               <TextInput
                 placeholder="Phone number"
@@ -651,8 +744,136 @@ export default function App() {
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Send code</Text>}
               </TouchableOpacity>
               <Text style={styles.helperText}>We will text you a verification code.</Text>
+              <TouchableOpacity style={styles.linkButton} onPress={() => { resetLoginState(); setRegisterMode(true); }} disabled={loading}>
+                <Text style={styles.linkButtonText}>Create account</Text>
+              </TouchableOpacity>
             </>
-          ) : (
+          ) : null}
+          {!otpSent && registerMode ? (
+            <>
+              <Text style={styles.sectionTitle}>Create account</Text>
+              <TextInput
+                placeholder="Business name"
+                autoCapitalize="words"
+                style={styles.input}
+                value={registerBusinessName}
+                onChangeText={setRegisterBusinessName}
+              />
+              <TextInput
+                placeholder="Owner name"
+                autoCapitalize="words"
+                style={styles.input}
+                value={registerOwnerName}
+                onChangeText={setRegisterOwnerName}
+              />
+              <TextInput
+                placeholder="Phone number"
+                autoCapitalize="none"
+                keyboardType="phone-pad"
+                style={styles.input}
+                value={registerPhone}
+                onChangeText={setRegisterPhone}
+              />
+              <TextInput
+                placeholder="Email (optional)"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                style={styles.input}
+                value={registerEmail}
+                onChangeText={setRegisterEmail}
+              />
+              <TextInput
+                placeholder="Timezone (e.g. America/New_York)"
+                autoCapitalize="none"
+                style={styles.input}
+                value={registerTimezone}
+                onChangeText={setRegisterTimezone}
+              />
+              <View style={styles.divider} />
+              <Text style={styles.sectionTitle}>Services (optional)</Text>
+              {registerServices.map((svc, idx) => (
+                <View key={`svc-${idx}`} style={styles.card}>
+                  <TextInput
+                    placeholder="Service name"
+                    autoCapitalize="words"
+                    style={styles.input}
+                    value={svc.name}
+                    onChangeText={(value) => {
+                      const next = [...registerServices];
+                      next[idx] = { ...next[idx], name: value };
+                      setRegisterServices(next);
+                    }}
+                  />
+                  <View style={styles.formRow}>
+                    <View style={styles.formColumn}>
+                      <Text style={styles.formLabel}>Duration (min)</Text>
+                      <TextInput
+                        placeholder="45"
+                        keyboardType="numeric"
+                        style={styles.input}
+                        value={svc.durationMinutes}
+                        onChangeText={(value) => {
+                          const next = [...registerServices];
+                          next[idx] = { ...next[idx], durationMinutes: value };
+                          setRegisterServices(next);
+                        }}
+                      />
+                    </View>
+                    <View style={styles.formColumn}>
+                      <Text style={styles.formLabel}>Price</Text>
+                      <TextInput
+                        placeholder="0"
+                        keyboardType="numeric"
+                        style={styles.input}
+                        value={svc.price}
+                        onChangeText={(value) => {
+                          const next = [...registerServices];
+                          next[idx] = { ...next[idx], price: value };
+                          setRegisterServices(next);
+                        }}
+                      />
+                    </View>
+                  </View>
+                  <Text style={styles.formLabel}>Currency</Text>
+                  <TextInput
+                    placeholder="USD"
+                    autoCapitalize="characters"
+                    style={styles.input}
+                    value={svc.currency}
+                    onChangeText={(value) => {
+                      const next = [...registerServices];
+                      next[idx] = { ...next[idx], currency: value };
+                      setRegisterServices(next);
+                    }}
+                  />
+                  <TouchableOpacity
+                    style={styles.ghostButtonSmall}
+                    onPress={() => {
+                      const next = registerServices.filter((_, i) => i !== idx);
+                      setRegisterServices(next);
+                    }}
+                  >
+                    <Text style={styles.ghostButtonText}>Remove service</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => setRegisterServices((prev) => [...prev, { name: "", durationMinutes: "45", price: "", currency: "USD" }])}
+                disabled={loading}
+              >
+                <Text style={styles.secondaryButtonText}>Add service</Text>
+              </TouchableOpacity>
+              {error && <Text style={styles.error}>{error}</Text>}
+              <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={loading}>
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Create account</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.linkButton} onPress={() => { resetRegisterState(); setRegisterMode(false); }} disabled={loading}>
+                <Text style={styles.linkButtonText}>Back to login</Text>
+              </TouchableOpacity>
+            </>
+          ) : null}
+          {otpSent ? (
             <>
               <Text style={styles.helperText}>Code sent to {loginPhone}</Text>
               <Text style={styles.helperText}>Tenant: {otpTenantKey}</Text>
@@ -681,7 +902,7 @@ export default function App() {
                 <Text style={styles.linkButtonText}>Edit phone</Text>
               </TouchableOpacity>
             </>
-          )}
+          ) : null}
         </View>
       </SafeAreaView>
     );
@@ -2534,6 +2755,9 @@ const styles = StyleSheet.create({
   formRow: {
     flexDirection: "row",
     gap: 12
+  },
+  formColumn: {
+    flex: 1
   },
   textArea: {
     height: 90,
