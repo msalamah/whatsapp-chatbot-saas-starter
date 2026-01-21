@@ -277,6 +277,7 @@ Acceptance checks:
 - Web and mobile can both register and login using OTP.
 - Session refresh works on both clients without manual re-login.
 - Feature parity: actions in web match those in mobile for approvals, appointments, customers, services, calendar.
+Status: complete
 
 ## 16) Web-to-mobile consistency testing
 

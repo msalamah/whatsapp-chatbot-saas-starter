@@ -546,3 +546,69 @@ button.danger {
   padding: 0 0.75rem;
   box-sizing: border-box;
 }
+
+.auth-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tenant-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tenant-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  text-align: left;
+  background: #fff;
+  border: 1px solid var(--stroke);
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+}
+
+.tenant-title {
+  font-weight: 600;
+}
+
+.tenant-subtitle {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+button.secondary {
+  background: #fff;
+  border: 1px solid var(--stroke);
+  color: #0f172a;
+}
+
+button.link-button {
+  background: transparent;
+  color: var(--accent);
+  padding: 0.25rem 0;
+}
+
+.service-card {
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  background: #fff;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.divider {
+  height: 1px;
+  background: var(--stroke);
+  border: none;
+}

@@ -46,6 +46,7 @@ export interface Appointment {
 
 export interface OwnerCredentials {
   token: string;
+  refreshToken?: string;
   tenant: TenantInfo;
 }
 

@@ -12,6 +12,15 @@ import {
 const API_BASE = import.meta.env.VITE_API_BASE_URL || window.location.origin;
 
 async function request(path: string, options: RequestInit = {}, token?: string) {
+  return requestWithRetry(path, options, token, true);
+}
+
+let refreshHandler: (() => Promise<string | null>) | null = null;
+export function setRefreshHandler(handler: (() => Promise<string | null>) | null) {
+  refreshHandler = handler;
+}
+
+async function requestWithRetry(path: string, options: RequestInit, token?: string, allowRefresh = true) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
@@ -20,15 +29,133 @@ async function request(path: string, options: RequestInit = {}, token?: string) 
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     }
   });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(text || res.statusText);
+  const text = await res.text();
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
   }
-  return res.json();
+  if (!res.ok) {
+    if (res.status === 401 && token && allowRefresh && refreshHandler) {
+      const next = await refreshHandler();
+      if (next) {
+        return requestWithRetry(path, options, next, false);
+      }
+    }
+    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    throw new Error(message);
+  }
+  return data;
 }
 
-export async function loginOwner(tenantKey: string, ownerToken: string): Promise<OwnerCredentials> {
-  return request("/owner/login", { method: "POST", body: JSON.stringify({ tenantKey, token: ownerToken }) });
+export async function requestOwnerOtp(phone: string, tenantKey?: string) {
+  const res = await fetch(`${API_BASE}/owner/auth/request-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      phone,
+      ...(tenantKey ? { tenantKey } : {})
+    })
+  });
+  const text = await res.text();
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  }
+  if (res.status === 409) {
+    return { tenants: data?.tenants || [] };
+  }
+  if (!res.ok) {
+    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    throw new Error(message);
+  }
+  return data;
+}
+
+export async function verifyOwnerOtp(phone: string, tenantKey: string, code: string): Promise<OwnerCredentials> {
+  const res = await fetch(`${API_BASE}/owner/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, tenantKey, code })
+  });
+  const text = await res.text();
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  }
+  if (!res.ok) {
+    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    throw new Error(message);
+  }
+  return data as OwnerCredentials;
+}
+
+export async function registerOwner(payload: {
+  displayName: string;
+  ownerName: string;
+  phone: string;
+  email?: string;
+  timezone?: string;
+  services?: Array<{
+    name: string;
+    minMinutes: number;
+    maxMinutes: number;
+    price?: number;
+    currency?: string;
+  }>;
+}) {
+  const res = await fetch(`${API_BASE}/owner/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const text = await res.text();
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  }
+  if (!res.ok) {
+    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    throw new Error(message);
+  }
+  return data;
+}
+
+export async function refreshOwnerSession(refreshToken: string): Promise<OwnerCredentials> {
+  const res = await fetch(`${API_BASE}/owner/auth/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken })
+  });
+  const text = await res.text();
+  let data: any = null;
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = text;
+    }
+  }
+  if (!res.ok) {
+    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    throw new Error(message);
+  }
+  return data as OwnerCredentials;
 }
 
 export async function fetchPending(token: string): Promise<PendingBooking[]> {

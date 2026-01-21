@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import {
-  loginOwner,
+  requestOwnerOtp,
+  verifyOwnerOtp,
+  registerOwner,
+  refreshOwnerSession,
+  setRefreshHandler,
   fetchPending,
   fetchAppointments,
   resolvePending,
@@ -14,7 +18,7 @@ import {
   fetchCalendarSettings,
   saveCalendarSettings
 } from "./api";
-import { LoginForm } from "./components/LoginForm";
+import { OwnerAuthForm } from "./components/OwnerAuthForm";
 import { PendingList } from "./components/PendingList";
 import { AppointmentsList } from "./components/AppointmentsList";
 import { CustomerList } from "./components/CustomerList";
@@ -36,6 +40,7 @@ import {
 import { CalendarSettings } from "./components/CalendarSettings";
 
 const TOKEN_KEY = "ownerPortalToken";
+const REFRESH_KEY = "ownerPortalRefreshToken";
 const TENANT_NAME_KEY = "ownerPortalTenantName";
 const TENANT_KEY_KEY = "ownerPortalTenantKey";
 const CALENDAR_LINK_KEY = "ownerPortalCalendar";
@@ -44,6 +49,7 @@ const CUSTOMER_LIMIT = 100;
 
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
+  const [refreshToken, setRefreshToken] = useState<string | null>(() => localStorage.getItem(REFRESH_KEY));
   const [tenant, setTenant] = useState<TenantInfo | null>(() => {
     const name = localStorage.getItem(TENANT_NAME_KEY);
     const key = localStorage.getItem(TENANT_KEY_KEY);
@@ -71,6 +77,37 @@ export default function App() {
     refreshData(token);
   }, [token, customerQuery, appointmentRange]);
 
+  useEffect(() => {
+    setRefreshHandler(async () => {
+      if (!refreshToken) return null;
+      try {
+        const res = await refreshOwnerSession(refreshToken);
+        applySession(res);
+        return res.token;
+      } catch {
+        return null;
+      }
+    });
+    return () => setRefreshHandler(null);
+  }, [refreshToken]);
+
+  function applySession(res: { token: string; refreshToken?: string; tenant: TenantInfo }) {
+    localStorage.setItem(TOKEN_KEY, res.token);
+    if (res.refreshToken) {
+      localStorage.setItem(REFRESH_KEY, res.refreshToken);
+      setRefreshToken(res.refreshToken);
+    }
+    localStorage.setItem(TENANT_NAME_KEY, res.tenant.name);
+    localStorage.setItem(TENANT_KEY_KEY, res.tenant.key);
+    if (res.tenant.calendarLink) {
+      localStorage.setItem(CALENDAR_LINK_KEY, res.tenant.calendarLink);
+    } else {
+      localStorage.removeItem(CALENDAR_LINK_KEY);
+    }
+    setToken(res.token);
+    setTenant(res.tenant);
+  }
+
   async function refreshData(forceToken = token) {
     if (!forceToken) return;
     setLoading(true);
@@ -96,24 +133,56 @@ export default function App() {
     }
   }
 
-  async function handleLogin(tenantKey: string, ownerToken: string) {
+  async function handleRequestOtp(phone: string, tenantKey?: string): Promise<{ tenantKey?: string; tenants?: Array<{ key: string; name: string }> }> {
     setLoading(true);
     setError(null);
     try {
-      const res = await loginOwner(tenantKey, ownerToken);
-      localStorage.setItem(TOKEN_KEY, res.token);
-      localStorage.setItem(TENANT_NAME_KEY, res.tenant.name);
-      localStorage.setItem(TENANT_KEY_KEY, tenantKey);
-      if (res.tenant.calendarLink) {
-        localStorage.setItem(CALENDAR_LINK_KEY, res.tenant.calendarLink);
-      } else {
-        localStorage.removeItem(CALENDAR_LINK_KEY);
-      }
-      setToken(res.token);
-      setTenant(res.tenant);
+      const res = await requestOwnerOtp(phone, tenantKey);
+      return res;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send code");
+      return {};
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp(phone: string, tenantKey: string, code: string) {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await verifyOwnerOtp(phone, tenantKey, code);
+      applySession(res);
       await refreshData(res.token);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "Verification failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRegister(payload: {
+    displayName: string;
+    ownerName: string;
+    phone: string;
+    email?: string;
+    timezone?: string;
+    services?: Array<{
+      name: string;
+      minMinutes: number;
+      maxMinutes: number;
+      price?: number;
+      currency?: string;
+    }>;
+  }): Promise<{ tenantKey: string }> {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await registerOwner(payload);
+      return res;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Registration failed");
+      return { tenantKey: "" };
     } finally {
       setLoading(false);
     }
@@ -189,10 +258,12 @@ export default function App() {
 
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(REFRESH_KEY);
     localStorage.removeItem(TENANT_KEY_KEY);
     localStorage.removeItem(TENANT_NAME_KEY);
     localStorage.removeItem(CALENDAR_LINK_KEY);
     setToken(null);
+    setRefreshToken(null);
     setTenant(null);
     setPending([]);
     setAppointments([]);
@@ -204,7 +275,13 @@ export default function App() {
   if (!isLoggedIn) {
     return (
       <main className="owner-page owner-login">
-        <LoginForm onLogin={handleLogin} loading={loading} error={error} />
+        <OwnerAuthForm
+          loading={loading}
+          error={error}
+          onRequestOtp={handleRequestOtp}
+          onVerifyOtp={handleVerifyOtp}
+          onRegister={handleRegister}
+        />
       </main>
     );
   }
