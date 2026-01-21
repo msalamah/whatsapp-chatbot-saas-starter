@@ -103,7 +103,13 @@ type AnalyticsSummary = {
   upcomingBookings: number;
 };
 
+type TenantOption = {
+  key: string;
+  name: string;
+};
+
 const STORAGE_KEY = "owner-mobile-session";
+const PHONE_KEY = "owner-mobile-phone";
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL as string | undefined) ||
   (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined) ||
@@ -197,8 +203,14 @@ function useOwner() {
 }
 
 export default function App() {
-  const [tenantKey, setTenantKey] = useState("");
-  const [ownerToken, setOwnerToken] = useState("");
+  const [loginPhone, setLoginPhone] = useState("");
+  const [loginTenantKey, setLoginTenantKey] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpTenantKey, setOtpTenantKey] = useState("");
+  const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
   const [session, setSession] = useState<OwnerSession | null>(null);
   const [jwt, setJwt] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingBooking[]>([]);
@@ -239,7 +251,20 @@ export default function App() {
         }
       })
       .catch(() => undefined);
+    SecureStore.getItemAsync(PHONE_KEY)
+      .then((stored) => {
+        if (stored) setLoginPhone(stored);
+      })
+      .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!otpCooldown) return;
+    const timer = setInterval(() => {
+      setOtpCooldown((value) => (value > 0 ? value - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldown]);
 
   useEffect(() => {
     if (!jwt) {
@@ -278,23 +303,111 @@ export default function App() {
     }
   };
 
-  const handleLogin = async () => {
-    if (!tenantKey.trim() || !ownerToken.trim()) {
-      setError("Tenant key and owner token are required");
+  const resetLoginState = () => {
+    setOtpSent(false);
+    setOtpCode("");
+    setOtpTenantKey("");
+    setOtpExpiresAt(null);
+    setOtpCooldown(0);
+    setTenantOptions([]);
+    setError(null);
+  };
+
+  const requestOtp = async (targetTenantKey?: string) => {
+    const phone = loginPhone.trim();
+    const resolvedTenantKey = (targetTenantKey || loginTenantKey || "").trim();
+    if (!phone) {
+      setError("Phone number is required");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setTenantOptions([]);
+    try {
+      const response = await fetch(`${API_BASE}/owner/auth/request-otp`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phone,
+          ...(resolvedTenantKey ? { tenantKey: resolvedTenantKey } : {})
+        })
+      });
+      const text = await response.text();
+      let data: any = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+      if (!response.ok) {
+        if (response.status === 409 && data?.tenants) {
+          setTenantOptions(data.tenants);
+          setError("Select your business");
+          return;
+        }
+        const message = typeof data === "string" ? data : data?.error || response.statusText;
+        throw new Error(message);
+      }
+      setOtpSent(true);
+      setOtpTenantKey(data?.tenantKey || resolvedTenantKey);
+      setLoginTenantKey(data?.tenantKey || resolvedTenantKey);
+      setOtpExpiresAt(data?.expiresAt || null);
+      setOtpCode("");
+      setOtpCooldown(30);
+      await SecureStore.setItemAsync(PHONE_KEY, phone);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to send code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    const phone = loginPhone.trim();
+    const tenantKey = otpTenantKey.trim();
+    const code = otpCode.trim();
+    if (!phone) {
+      setError("Phone number is required");
+      return;
+    }
+    if (!tenantKey) {
+      setError("Tenant key is required");
+      return;
+    }
+    if (!code) {
+      setError("Enter the verification code");
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const credentials = await apiRequest<OwnerSession>("/owner/login", {
+      const response = await fetch(`${API_BASE}/owner/auth/verify-otp`, {
         method: "POST",
-        body: JSON.stringify({ tenantKey: tenantKey.trim(), token: ownerToken.trim() })
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone, tenantKey, code })
       });
+      const text = await response.text();
+      let data: any = null;
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = text;
+        }
+      }
+      if (!response.ok) {
+        const message = typeof data === "string" ? data : data?.error || response.statusText;
+        throw new Error(message);
+      }
+      const credentials = data as OwnerSession;
       setSession(credentials);
       setJwt(credentials.token);
       await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(credentials));
+      resetLoginState();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Login failed");
+      setError(err instanceof Error ? err.message : "Verification failed");
     } finally {
       setLoading(false);
     }
@@ -500,26 +613,75 @@ export default function App() {
         <StatusBar style="dark" />
         <View style={styles.container}>
           <Text style={styles.title}>Owner login</Text>
-          <TextInput
-            placeholder="Tenant key"
-            autoCapitalize="none"
-            style={styles.input}
-            value={tenantKey}
-            onChangeText={setTenantKey}
-          />
-          <TextInput
-            placeholder="Owner token"
-            autoCapitalize="none"
-            secureTextEntry
-            style={styles.input}
-            value={ownerToken}
-            onChangeText={setOwnerToken}
-          />
-          {error && <Text style={styles.error}>{error}</Text>}
-          <TouchableOpacity style={styles.primaryButton} onPress={handleLogin} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Sign in</Text>}
-          </TouchableOpacity>
-          <Text style={styles.helperText}>Enter the tenant key + owner token provided in the admin portal.</Text>
+          {!otpSent ? (
+            <>
+              <TextInput
+                placeholder="Phone number"
+                autoCapitalize="none"
+                keyboardType="phone-pad"
+                style={styles.input}
+                value={loginPhone}
+                onChangeText={setLoginPhone}
+              />
+              <TextInput
+                placeholder="Tenant key (optional)"
+                autoCapitalize="none"
+                style={styles.input}
+                value={loginTenantKey}
+                onChangeText={setLoginTenantKey}
+              />
+              {tenantOptions.length > 0 && (
+                <View style={styles.tenantPicker}>
+                  <Text style={styles.helperText}>Choose your business</Text>
+                  {tenantOptions.map((tenant) => (
+                    <TouchableOpacity
+                      key={tenant.key}
+                      style={styles.tenantOption}
+                      onPress={() => requestOtp(tenant.key)}
+                      disabled={loading}
+                    >
+                      <Text style={styles.tenantOptionTitle}>{tenant.name}</Text>
+                      <Text style={styles.tenantOptionSubtitle}>{tenant.key}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {error && <Text style={styles.error}>{error}</Text>}
+              <TouchableOpacity style={styles.primaryButton} onPress={() => requestOtp()} disabled={loading}>
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Send code</Text>}
+              </TouchableOpacity>
+              <Text style={styles.helperText}>We will text you a verification code.</Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.helperText}>Code sent to {loginPhone}</Text>
+              <Text style={styles.helperText}>Tenant: {otpTenantKey}</Text>
+              <TextInput
+                placeholder="Verification code"
+                keyboardType="number-pad"
+                style={styles.input}
+                value={otpCode}
+                onChangeText={setOtpCode}
+              />
+              {otpExpiresAt && <Text style={styles.helperText}>Code expires soon.</Text>}
+              {error && <Text style={styles.error}>{error}</Text>}
+              <TouchableOpacity style={styles.primaryButton} onPress={handleVerifyOtp} disabled={loading}>
+                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Verify</Text>}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => requestOtp(otpTenantKey)}
+                disabled={loading || otpCooldown > 0}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : "Resend code"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.linkButton} onPress={resetLoginState} disabled={loading}>
+                <Text style={styles.linkButtonText}>Edit phone</Text>
+              </TouchableOpacity>
+            </>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -2015,6 +2177,48 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 13,
     color: "#475569"
+  },
+  secondaryButton: {
+    borderRadius: 12,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "#cbd5e1",
+    backgroundColor: "#fff"
+  },
+  secondaryButtonText: {
+    color: "#0f172a",
+    fontWeight: "600",
+    fontSize: 14
+  },
+  linkButton: {
+    alignItems: "center",
+    paddingVertical: 6
+  },
+  linkButtonText: {
+    color: "#0ea5e9",
+    fontWeight: "600",
+    fontSize: 14
+  },
+  tenantPicker: {
+    gap: 8
+  },
+  tenantOption: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 12,
+    backgroundColor: "#fff"
+  },
+  tenantOptionTitle: {
+    fontWeight: "600",
+    color: "#0f172a"
+  },
+  tenantOptionSubtitle: {
+    color: "#64748b",
+    fontSize: 12,
+    marginTop: 2
   },
   searchRow: {
     flexDirection: "row",

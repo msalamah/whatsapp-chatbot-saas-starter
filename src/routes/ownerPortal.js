@@ -13,6 +13,9 @@ import { generateCustomersCsv, generateAppointmentsCsv } from "../services/csvEx
 import { getOwnerAnalytics } from "../services/analyticsService.js";
 import { getCalendar, upsertCalendar } from "../services/calendarService.js";
 import { upsertCustomer } from "../services/customerStore.js";
+import { listTenantsForPhone, getOwnerTenantLink } from "../services/ownerStore.js";
+import { createOwnerOtp, validateOwnerPreauth, verifyOwnerOtp } from "../services/ownerOtpStore.js";
+import { sendOtpSms } from "../services/notificationService.js";
 import { v4 as uuidv4 } from "uuid";
 
 const router = express.Router();
@@ -24,6 +27,15 @@ function buildCalendarLink(tenant) {
   if (!tenant?.calendar?.calendarId) return null;
   const encoded = encodeURIComponent(tenant.calendar.calendarId);
   return `https://calendar.google.com/calendar/u/0/r?cid=${encoded}`;
+}
+
+function normalizePhone(raw) {
+  if (!raw) return "";
+  return String(raw).trim().replace(/\s+/g, "");
+}
+
+function isValidPhone(phone) {
+  return /^\+?[1-9]\d{7,14}$/.test(phone);
 }
 
 function normalizeCalendarPayload(payload = {}) {
@@ -88,6 +100,95 @@ router.post("/login", async (req, res) => {
       calendarLink: buildCalendarLink(tenant)
     }
   });
+});
+
+router.post("/auth/request-otp", async (req, res) => {
+  const phone = normalizePhone(req.body?.phone);
+  const tenantKey = req.body?.tenantKey ? String(req.body.tenantKey).trim() : "";
+  if (!phone || !isValidPhone(phone)) {
+    return res.status(400).json({ error: "Valid phone is required" });
+  }
+  const tenants = await listTenantsForPhone(phone);
+  if (!tenants.length) {
+    return res.status(404).json({ error: "Owner not found for phone" });
+  }
+  let resolvedTenantKey = tenantKey;
+  if (tenantKey) {
+    const link = await getOwnerTenantLink({ phone, tenantKey });
+    if (!link) {
+      return res.status(404).json({ error: "Owner not linked to tenant" });
+    }
+  } else if (tenants.length === 1) {
+    resolvedTenantKey = tenants[0].key;
+  } else {
+    return res.status(409).json({ error: "Tenant selection required", tenants });
+  }
+  const otp = await createOwnerOtp({ phone, tenantKey: resolvedTenantKey });
+  try {
+    await sendOtpSms({ to: phone, code: otp.code });
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to send OTP" });
+  }
+  return res.json({
+    status: "sent",
+    tenantKey: resolvedTenantKey,
+    expiresAt: otp.expiresAt,
+    preauthToken: otp.preauthToken
+  });
+});
+
+router.post("/auth/verify-otp", async (req, res) => {
+  const phone = normalizePhone(req.body?.phone);
+  const tenantKey = req.body?.tenantKey ? String(req.body.tenantKey).trim() : "";
+  const code = req.body?.code ? String(req.body.code).trim() : "";
+  if (!phone || !isValidPhone(phone)) {
+    return res.status(400).json({ error: "Valid phone is required" });
+  }
+  if (!tenantKey) {
+    return res.status(400).json({ error: "tenantKey is required" });
+  }
+  if (!code) {
+    return res.status(400).json({ error: "code is required" });
+  }
+  try {
+    await verifyOwnerOtp({ phone, tenantKey, code });
+  } catch (err) {
+    return res.status(400).json({ error: err.message || "OTP verification failed" });
+  }
+  const link = await getOwnerTenantLink({ phone, tenantKey });
+  if (!link) {
+    return res.status(404).json({ error: "Owner not linked to tenant" });
+  }
+  const tenant = await getTenantByKey(tenantKey);
+  if (!tenant) {
+    return res.status(404).json({ error: "Tenant not found" });
+  }
+  const jwt = signOwnerToken({ tenantKey, ownerId: link.owner_id, role: link.role || "owner" });
+  return res.json({
+    token: jwt,
+    tenant: {
+      key: tenant.key,
+      name: tenant.displayName,
+      calendarLink: buildCalendarLink(tenant)
+    }
+  });
+});
+
+router.get("/tenants", async (req, res) => {
+  const phone = normalizePhone(req.query.phone);
+  const token = req.query.token ? String(req.query.token).trim() : "";
+  if (!phone || !isValidPhone(phone)) {
+    return res.status(400).json({ error: "Valid phone is required" });
+  }
+  if (!token) {
+    return res.status(400).json({ error: "token is required" });
+  }
+  const ok = await validateOwnerPreauth({ phone, token });
+  if (!ok) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  const tenants = await listTenantsForPhone(phone);
+  return res.json({ tenants });
 });
 
 router.get("/portal", (_req, res) => {

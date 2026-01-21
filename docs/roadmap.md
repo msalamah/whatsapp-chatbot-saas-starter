@@ -10,6 +10,7 @@ Status legend: `[ ]` Not started · `[~]` In progress · `[x]` Complete
 - [x] Integrate LLM conversation orchestration (OpenAI) for natural-language booking flows
 - [x] Ensure AI replies mirror customer language automatically
 - [x] Model tenant service catalog (duration ranges, pricing) and propagate into booking flow
+- [ ] Owner mobile productization plan (tasks: `docs/owner-mobile-productization.md`)
 
 ## Tenant & salon onboarding
 - [x] Build secure endpoints or dashboard for tenant CRUD and token rotation (API + bearer auth delivered; expand validation next)

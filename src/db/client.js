@@ -144,6 +144,43 @@ export async function initializeDatabase() {
   await query("ALTER TABLE otps ADD COLUMN IF NOT EXISTS channel text");
 
   await query(`
+    CREATE TABLE IF NOT EXISTS owners (
+      id text PRIMARY KEY,
+      phone text UNIQUE,
+      email text,
+      display_name text,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now()
+    );
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS owner_tenants (
+      owner_id text REFERENCES owners(id) ON DELETE CASCADE,
+      tenant_key text REFERENCES tenants(key) ON DELETE CASCADE,
+      role text DEFAULT 'owner',
+      created_at timestamptz DEFAULT now(),
+      PRIMARY KEY (owner_id, tenant_key)
+    );
+  `);
+
+  await query(`
+    CREATE TABLE IF NOT EXISTS owner_otps (
+      id text PRIMARY KEY,
+      phone text,
+      tenant_key text,
+      code_hash text,
+      preauth_token text,
+      attempts integer DEFAULT 0,
+      locked_until timestamptz,
+      verified boolean DEFAULT false,
+      verified_at timestamptz,
+      expires_at timestamptz,
+      created_at timestamptz DEFAULT now()
+    );
+  `);
+
+  await query(`
     CREATE TABLE IF NOT EXISTS calendars (
       tenant_key text PRIMARY KEY REFERENCES tenants(key) ON DELETE CASCADE,
       timezone text DEFAULT 'UTC',
