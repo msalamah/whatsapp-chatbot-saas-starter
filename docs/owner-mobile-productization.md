@@ -223,6 +223,7 @@ Implementation details:
 Acceptance checks:
 - Data delete action is available and logs an audit event.
 - OTP table is cleaned automatically.
+Status: complete
 
 ## 13) App modularization and maintainability (app)
 

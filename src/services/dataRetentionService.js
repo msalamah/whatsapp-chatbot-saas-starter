@@ -32,7 +32,9 @@ export async function pruneExpiredData({ now = new Date() } = {}) {
   const summary = {
     pendingBookings: 0,
     appointments: 0,
-    customers: 0
+    customers: 0,
+    otps: 0,
+    ownerOtps: 0
   };
 
   if (config.pendingRetentionHours > 0) {
@@ -68,6 +70,12 @@ export async function pruneExpiredData({ now = new Date() } = {}) {
     }
     summary.customers = doomed.rowCount || 0;
   }
+
+  const otpRes = await query("DELETE FROM otps WHERE expires_at IS NOT NULL AND expires_at < $1", [timestamp.toISOString()]);
+  summary.otps = otpRes.rowCount || 0;
+
+  const ownerOtpRes = await query("DELETE FROM owner_otps WHERE expires_at IS NOT NULL AND expires_at < $1", [timestamp.toISOString()]);
+  summary.ownerOtps = ownerOtpRes.rowCount || 0;
 
   logger.info("data.retention", "maintenance", { summary, config });
   return summary;

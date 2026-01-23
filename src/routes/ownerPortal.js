@@ -19,6 +19,7 @@ import { sendOtpSms } from "../services/notificationService.js";
 import { createOwnerRefreshToken, rotateOwnerRefreshToken } from "../services/ownerSessionStore.js";
 import { createRateLimiter, ipRateLimiter } from "../middleware/rateLimit.js";
 import { upsertOwnerDevice } from "../services/ownerDeviceStore.js";
+import { deleteCustomerData } from "../services/privacyService.js";
 import { v4 as uuidv4 } from "uuid";
 
 const router = express.Router();
@@ -533,6 +534,19 @@ router.post("/pending/:customerId/reject", async (req, res) => {
     res.json({ status: "rejected" });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete("/customers/:customerId", ownerAuth, async (req, res) => {
+  try {
+    const result = await deleteCustomerData({
+      tenantKey: req.owner.tenantKey,
+      customerId: req.params.customerId,
+      actor: req.owner?.ownerId || "owner"
+    });
+    return res.json({ status: "deleted", deleted: result.deleted });
+  } catch (err) {
+    return sendError(res, { code: "CUSTOMER_DELETE_FAILED", message: err.message || "Failed to delete customer" });
   }
 });
 
