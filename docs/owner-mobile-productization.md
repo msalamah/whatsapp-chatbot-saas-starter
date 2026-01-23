@@ -173,6 +173,7 @@ Implementation details:
 Acceptance checks:
 - Server fails fast without required secrets.
 - `README.md` lists all required env vars for owner mobile.
+Status: complete
 
 ## 10) Mobile UX polish for OTP and registration (app)
 

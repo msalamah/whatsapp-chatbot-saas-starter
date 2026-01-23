@@ -9,7 +9,7 @@ Multi-tenant WhatsApp Business webhook starter with calendar integration for sal
 # installs deps, creates .env, prints next steps
 ```
 
-1. **Configure secrets** – update `.env` with `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, `APP_SECRET` (if verifying signatures), `DATABASE_URL`, `ADMIN_API_KEYS`, `OWNER_JWT_SECRET`, `OPENAI_API_KEY`, plus retention knobs (`PENDING_RETENTION_HOURS`, `APPOINTMENT_RETENTION_DAYS`, `CUSTOMER_RETENTION_DAYS`).  
+1. **Configure secrets** – update `.env` with `WHATSAPP_VERIFY_TOKEN`, `WABA_TOKEN`, `PHONE_NUMBER_ID`, `APP_SECRET` (if verifying signatures), `DATABASE_URL`, `ADMIN_API_KEYS`, `OWNER_JWT_SECRET`, `OWNER_OTP_SECRET`, `OWNER_REFRESH_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`, `OPENAI_API_KEY`, plus retention knobs (`PENDING_RETENTION_HOURS`, `APPOINTMENT_RETENTION_DAYS`, `CUSTOMER_RETENTION_DAYS`).  
    • For local Postgres run `docker compose up db`. Default creds: `postgres://chatbot:chatbot@localhost:5432/chatbot`.
 2. **Start services** – `npm run dev` runs the webhook server/admin/owner APIs. Use `npm run admin:dev` in `apps/admin` to hack on the admin portal UI if needed.
 3. **Expose webhook** – `npx ngrok http 3000`, then in Meta App → WhatsApp → Configuration set:  
@@ -17,7 +17,7 @@ Multi-tenant WhatsApp Business webhook starter with calendar integration for sal
    • Verify Token = `WHATSAPP_VERIFY_TOKEN`  
    • Subscriptions: `messages`, `message_status`, `message_template_status_update`
 4. **Admin portal** – `npm run admin:dev` and visit http://localhost:5173. Connect with `Authorization: Bearer <ADMIN_API_KEY>`. Create/rotate tenants, tokens, services.
-5. **Owner portal** – share each tenant’s `ownerToken` (rotate via `POST /tenants/:key/owner-token`). Owners go to `http://localhost:3000/owner/portal`, enter tenant key + token, and manage pending bookings.
+5. **Owner portal** – owners login with OTP via phone number, and can self-register from the app. The legacy token flow (`POST /owner/login`) is still available for dev.
 
 Tenant secrets live in `.env`; keep `src/tenants/tenants.json` token-free so seeded defaults are safe. Postgres stores tenants/services/customers/pending bookings; `data/admin-activity.json` tracks admin actions.
 
@@ -71,13 +71,13 @@ Assign each one its own WhatsApp sandbox credentials before testing multi-tenant
 
 ### Owner portal (tenants)
 
-- Every tenant has an owner portal token (`ownerTokenPreview` is shown in `/tenants` when `includeSensitive=true`). Rotate tokens with `POST /tenants/:key/owner-token`.
+- Every tenant has an owner portal token (`ownerTokenPreview` is shown in `/tenants` when `includeSensitive=true`). Rotate tokens with `POST /tenants/:key/owner-token` (legacy).
 - Owners can either use the static `/owner/portal` page (quick demo) **or** the dedicated React app in `apps/owner`.
 - For the React app, run `npm run owner:dev` (defaults to http://localhost:5174). Set `VITE_API_BASE_URL` in `apps/owner/.env` if your backend runs elsewhere. Build for production with `npm run owner:build` and host the static `apps/owner/dist` output.
-- Features today: login via tenant key/token, pending approvals with approve/reject actions, recent approved appointments, customer list, and a read-only service catalog. Calendar link appears when the tenant has Google Calendar enabled.
+- Features today: OTP login + registration, pending approvals with approve/reject actions, recent approved appointments, customer list, and a read-only service catalog. Calendar link appears when the tenant has Google Calendar enabled.
 - Owners can search customers by name/phone, drill into a customer’s detail (metadata + recent bookings), and filter appointments by upcoming/past/all directly in the React app.
 - If the tenant has Google Calendar enabled, the portal links directly to their calendar (pre-populated via the `calendarId` you configured).
-- The portal uses `/owner/login` to issue a JWT and `/owner/pending` plus `/owner/pending/:customerId/approve|reject` to process bookings; responses sync with WhatsApp and Google Calendar automatically.
+- The portal uses `/owner/auth/request-otp` + `/owner/auth/verify-otp` to issue a JWT and `/owner/pending` plus `/owner/pending/:customerId/approve|reject` to process bookings; responses sync with WhatsApp and Google Calendar automatically.
 
 ### Troubleshooting / FAQ
 
