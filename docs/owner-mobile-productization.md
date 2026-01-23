@@ -191,6 +191,7 @@ Web counterpart:
 Acceptance checks:
 - No dead-ends in onboarding.
 - Errors are actionable and do not block navigation.
+Status: complete
 
 ## 11) Push notification registration (app + backend)
 

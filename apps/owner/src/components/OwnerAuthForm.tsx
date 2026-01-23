@@ -41,6 +41,7 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
   const [otpTenantKey, setOtpTenantKey] = useState("");
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
   const [cooldown, setCooldown] = useState(0);
+  const [notice, setNotice] = useState<string | null>(null);
   const [registerMode, setRegisterMode] = useState(false);
   const [registerBusinessName, setRegisterBusinessName] = useState("");
   const [registerOwnerName, setRegisterOwnerName] = useState("");
@@ -63,6 +64,10 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
 
   const requestOtp = async (tenantKey?: string) => {
     const phone = loginPhone.trim();
+    if (!phone.startsWith("+")) {
+      setNotice("Include country code (e.g., +1...)");
+      return;
+    }
     const result = await onRequestOtp(phone, tenantKey || loginTenantKey.trim());
     if (result.tenants?.length) {
       setTenantOptions(result.tenants);
@@ -75,15 +80,22 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
     setLoginTenantKey(resolvedTenantKey);
     setOtpCode("");
     setCooldown(30);
+    setNotice("Code sent. Check your phone.");
   };
 
   const handleVerify = async (event: FormEvent) => {
     event.preventDefault();
+    setNotice(null);
     await onVerifyOtp(loginPhone.trim(), otpTenantKey.trim(), otpCode.trim());
   };
 
   const handleRegister = async (event: FormEvent) => {
     event.preventDefault();
+    if (!registerPhone.trim().startsWith("+")) {
+      setNotice("Include country code (e.g., +1...)");
+      return;
+    }
+    setNotice(null);
     const services = registerServices
       .filter((svc) => svc.name.trim())
       .map((svc) => {
@@ -117,6 +129,7 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
     setRegisterEmail("");
     setRegisterServices([]);
     setCooldown(30);
+    setNotice("Account created. Verify the code we just sent.");
   };
 
   return (
@@ -124,7 +137,7 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
       <h2>Owner access</h2>
       {!otpSent && !registerMode ? (
         <form className="auth-stack" onSubmit={(event) => { event.preventDefault(); requestOtp(); }}>
-          <input value={loginPhone} onChange={(e) => setLoginPhone(e.target.value)} placeholder="Phone number" />
+          <input value={loginPhone} onChange={(e) => setLoginPhone(e.target.value)} placeholder="Phone number" type="tel" />
           <input value={loginTenantKey} onChange={(e) => setLoginTenantKey(e.target.value)} placeholder="Tenant key (optional)" />
           {tenantOptions.length > 0 && (
             <div className="tenant-picker">
@@ -146,6 +159,7 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
           <button type="submit" disabled={loading || !loginPhone.trim()}>
             {loading ? "Sending…" : "Send code"}
           </button>
+          {notice && <p className="notice">{notice}</p>}
           {error && <p className="error">{error}</p>}
           <p className="muted">We will text you a verification code.</p>
           <button type="button" className="link-button" onClick={() => setRegisterMode(true)} disabled={loading}>
@@ -159,8 +173,8 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
           <h3>Create account</h3>
           <input value={registerBusinessName} onChange={(e) => setRegisterBusinessName(e.target.value)} placeholder="Business name" />
           <input value={registerOwnerName} onChange={(e) => setRegisterOwnerName(e.target.value)} placeholder="Owner name" />
-          <input value={registerPhone} onChange={(e) => setRegisterPhone(e.target.value)} placeholder="Phone number" />
-          <input value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} placeholder="Email (optional)" />
+          <input value={registerPhone} onChange={(e) => setRegisterPhone(e.target.value)} placeholder="Phone number" type="tel" />
+          <input value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} placeholder="Email (optional)" type="email" />
           <input value={registerTimezone} onChange={(e) => setRegisterTimezone(e.target.value)} placeholder="Timezone (e.g. America/New_York)" />
           <div className="divider" />
           <h4>Services (optional)</h4>
@@ -220,6 +234,7 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
           >
             Add service
           </button>
+          {notice && <p className="notice">{notice}</p>}
           {error && <p className="error">{error}</p>}
           <button type="submit" disabled={loading}>
             {loading ? "Creating…" : "Create account"}
@@ -235,7 +250,8 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
           <h3>Verify code</h3>
           <p className="muted">Code sent to {loginPhone}</p>
           <p className="muted">Tenant: {otpTenantKey}</p>
-          <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="Verification code" />
+          <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="Verification code" inputMode="numeric" />
+          {notice && <p className="notice">{notice}</p>}
           {error && <p className="error">{error}</p>}
           <button type="submit" disabled={loading || !otpCode.trim()}>
             {loading ? "Verifying…" : "Verify"}

@@ -248,6 +248,7 @@ export default function App() {
   const [otpExpiresAt, setOtpExpiresAt] = useState<string | null>(null);
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
+  const [authNotice, setAuthNotice] = useState<string | null>(null);
   const [session, setSession] = useState<OwnerSession | null>(null);
   const [jwt, setJwt] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
@@ -393,6 +394,7 @@ export default function App() {
     setOtpCooldown(0);
     setTenantOptions([]);
     setError(null);
+    setAuthNotice(null);
   };
 
   const mapAuthError = (code: string | undefined, fallback: string) => {
@@ -438,6 +440,7 @@ export default function App() {
     setRegisterEmail("");
     setRegisterServices([]);
     setError(null);
+    setAuthNotice(null);
   };
 
   const requestOtp = async (targetTenantKey?: string) => {
@@ -447,8 +450,13 @@ export default function App() {
       setError("Phone number is required");
       return;
     }
+    if (!phone.startsWith("+")) {
+      setError("Include country code (e.g., +1...)");
+      return;
+    }
     setLoading(true);
     setError(null);
+    setAuthNotice(null);
     setTenantOptions([]);
     try {
       const response = await fetch(`${API_BASE}/owner/auth/request-otp`, {
@@ -485,6 +493,7 @@ export default function App() {
       setOtpExpiresAt(data?.expiresAt || null);
       setOtpCode("");
       setOtpCooldown(30);
+      setAuthNotice("Code sent. Check your phone.");
       await SecureStore.setItemAsync(PHONE_KEY, phone);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to send code");
@@ -554,8 +563,13 @@ export default function App() {
       setError("Business name, owner name, and phone are required");
       return;
     }
+    if (!phone.startsWith("+")) {
+      setError("Include country code (e.g., +1...)");
+      return;
+    }
     setLoading(true);
     setError(null);
+    setAuthNotice(null);
     try {
       const services = registerServices
         .filter((svc) => svc.name.trim())
@@ -605,6 +619,7 @@ export default function App() {
       setOtpExpiresAt(data?.expiresAt || null);
       setOtpCooldown(30);
       await SecureStore.setItemAsync(PHONE_KEY, phone);
+      setAuthNotice("Account created. Verify the code we just sent.");
       setRegisterMode(false);
       resetRegisterState();
     } catch (err) {
@@ -849,6 +864,7 @@ export default function App() {
                   ))}
                 </View>
               )}
+              {authNotice && <Text style={styles.notice}>{authNotice}</Text>}
               {error && <Text style={styles.error}>{error}</Text>}
               <TouchableOpacity style={styles.primaryButton} onPress={() => requestOtp()} disabled={loading}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Send code</Text>}
@@ -974,6 +990,7 @@ export default function App() {
               >
                 <Text style={styles.secondaryButtonText}>Add service</Text>
               </TouchableOpacity>
+              {authNotice && <Text style={styles.notice}>{authNotice}</Text>}
               {error && <Text style={styles.error}>{error}</Text>}
               <TouchableOpacity style={styles.primaryButton} onPress={handleRegister} disabled={loading}>
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Create account</Text>}
@@ -985,6 +1002,7 @@ export default function App() {
           ) : null}
           {otpSent ? (
             <>
+              {authNotice && <Text style={styles.notice}>{authNotice}</Text>}
               <Text style={styles.helperText}>Code sent to {loginPhone}</Text>
               <Text style={styles.helperText}>Tenant: {otpTenantKey}</Text>
               <TextInput
@@ -2508,6 +2526,13 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 13,
     color: "#475569"
+  },
+  notice: {
+    fontSize: 13,
+    color: "#0f766e",
+    backgroundColor: "rgba(13, 148, 136, 0.1)",
+    padding: 10,
+    borderRadius: 10
   },
   secondaryButton: {
     borderRadius: 12,

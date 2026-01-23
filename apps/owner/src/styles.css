@@ -612,3 +612,11 @@ button.link-button {
   background: var(--stroke);
   border: none;
 }
+
+.notice {
+  color: #0f766e;
+  background: rgba(13, 148, 136, 0.12);
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
