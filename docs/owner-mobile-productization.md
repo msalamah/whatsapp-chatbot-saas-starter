@@ -293,3 +293,16 @@ Implementation details:
 Acceptance checks:
 - Contract tests run in CI and fail on response shape changes.
 - Parity checklist is updated when features land.
+Status: complete
+
+## Parity checklist (owner web vs mobile)
+
+- [x] OTP login (request + verify)
+- [x] Refresh token rotation
+- [x] Registration flow
+- [x] Pending approvals
+- [x] Appointments list
+- [x] Customers list + detail
+- [x] Services CRUD
+- [x] Calendar settings
+- [ ] Push notification registration
