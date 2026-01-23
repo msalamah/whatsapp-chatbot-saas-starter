@@ -209,6 +209,7 @@ Web counterpart:
 Acceptance checks:
 - Device token stored and updated on app launch.
 - Duplicate token entries are deduped.
+Status: complete
 
 ## 12) Data privacy and retention (backend)
 

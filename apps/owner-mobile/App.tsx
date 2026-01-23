@@ -9,6 +9,7 @@ import {
   Alert,
   FlatList,
   Modal,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -119,6 +120,7 @@ type RegisterServiceDraft = {
 const STORAGE_KEY = "owner-mobile-session";
 const PHONE_KEY = "owner-mobile-phone";
 const REFRESH_KEY = "owner-mobile-refresh";
+const DEVICE_TOKEN_KEY = "owner-mobile-device-token";
 const API_BASE =
   (process.env.EXPO_PUBLIC_API_BASE_URL as string | undefined) ||
   (Constants.expoConfig?.extra?.apiBaseUrl as string | undefined) ||
@@ -320,6 +322,30 @@ export default function App() {
     fetchData();
   }, [jwt]);
 
+  const registerPushToken = useCallback(async () => {
+    if (!jwt) return;
+    try {
+      const stored = await SecureStore.getItemAsync(DEVICE_TOKEN_KEY);
+      const Notifications = await import("expo-notifications").catch(() => null);
+      if (!Notifications) return;
+      const settings = await Notifications.getPermissionsAsync();
+      if (settings.status !== "granted") {
+        const next = await Notifications.requestPermissionsAsync();
+        if (next.status !== "granted") return;
+      }
+      const tokenResult = await Notifications.getExpoPushTokenAsync();
+      const token = tokenResult?.data;
+      if (!token || token === stored) return;
+      await apiRequest("/owner/devices", {
+        method: "POST",
+        body: JSON.stringify({ token, platform: Platform.OS })
+      }, jwt);
+      await SecureStore.setItemAsync(DEVICE_TOKEN_KEY, token);
+    } catch {
+      // best-effort registration
+    }
+  }, [jwt]);
+
   const refreshSession = useCallback(async () => {
     if (!refreshToken) return null;
     try {
@@ -358,6 +384,10 @@ export default function App() {
     setRefreshHandler(refreshSession);
     return () => setRefreshHandler(null);
   }, [refreshSession]);
+
+  useEffect(() => {
+    if (jwt) registerPushToken();
+  }, [jwt, registerPushToken]);
 
   const fetchData = async () => {
     if (!jwt) return;
@@ -632,6 +662,7 @@ export default function App() {
   const handleLogout = async () => {
     await SecureStore.deleteItemAsync(STORAGE_KEY);
     await SecureStore.deleteItemAsync(REFRESH_KEY);
+    await SecureStore.deleteItemAsync(DEVICE_TOKEN_KEY);
     setSession(null);
     setJwt(null);
     setRefreshToken(null);

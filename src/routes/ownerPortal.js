@@ -18,6 +18,7 @@ import { createOwnerOtp, validateOwnerPreauth, verifyOwnerOtp } from "../service
 import { sendOtpSms } from "../services/notificationService.js";
 import { createOwnerRefreshToken, rotateOwnerRefreshToken } from "../services/ownerSessionStore.js";
 import { createRateLimiter, ipRateLimiter } from "../middleware/rateLimit.js";
+import { upsertOwnerDevice } from "../services/ownerDeviceStore.js";
 import { v4 as uuidv4 } from "uuid";
 
 const router = express.Router();
@@ -300,6 +301,28 @@ router.post("/auth/refresh", async (req, res) => {
     });
   } catch (err) {
     return sendError(res, { code: "REFRESH_FAILED", message: err.message || "Refresh failed", status: 401 });
+  }
+});
+
+router.post("/devices", ownerAuth, async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  const platform = req.body?.platform ? String(req.body.platform).trim() : "unknown";
+  if (!req.owner?.ownerId) {
+    return sendError(res, { code: "OWNER_REQUIRED", message: "Owner identity required", status: 401 });
+  }
+  if (!token) {
+    return sendError(res, { code: "DEVICE_TOKEN_REQUIRED", message: "token is required" });
+  }
+  try {
+    await upsertOwnerDevice({
+      ownerId: req.owner.ownerId,
+      tenantKey: req.owner.tenantKey,
+      token,
+      platform
+    });
+    return res.json({ status: "ok" });
+  } catch (err) {
+    return sendError(res, { code: "DEVICE_REGISTER_FAILED", message: err.message || "Failed to register device" });
   }
 });
 

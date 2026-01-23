@@ -194,6 +194,19 @@ export async function initializeDatabase() {
   `);
 
   await query(`
+    CREATE TABLE IF NOT EXISTS owner_devices (
+      id text PRIMARY KEY,
+      owner_id text REFERENCES owners(id) ON DELETE CASCADE,
+      tenant_key text REFERENCES tenants(key) ON DELETE CASCADE,
+      token text,
+      platform text,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now(),
+      UNIQUE (owner_id, tenant_key, token)
+    );
+  `);
+
+  await query(`
     CREATE TABLE IF NOT EXISTS calendars (
       tenant_key text PRIMARY KEY REFERENCES tenants(key) ON DELETE CASCADE,
       timezone text DEFAULT 'UTC',
