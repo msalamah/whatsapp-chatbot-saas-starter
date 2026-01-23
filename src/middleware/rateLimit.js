@@ -22,7 +22,13 @@ export function createRateLimiter({ windowMs = defaultWindowMs, max = 10, keyGen
     if (entry.count >= max) {
       const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
       res.setHeader("Retry-After", String(retryAfter));
-      return res.status(429).json({ error: "Too many requests", retryAfter });
+      return res.status(429).json({
+        error: {
+          code: "RATE_LIMITED",
+          message: "Too many requests",
+          details: { retryAfter }
+        }
+      });
     }
     entry.count += 1;
     return next();

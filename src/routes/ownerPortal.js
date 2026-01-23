@@ -40,6 +40,16 @@ function isValidPhone(phone) {
   return /^\+?[1-9]\d{7,14}$/.test(phone);
 }
 
+function sendError(res, { code, message, status = 400, details }) {
+  return res.status(status).json({
+    error: {
+      code,
+      message,
+      ...(details ? { details } : {})
+    }
+  });
+}
+
 const otpRequestIpLimiter = ipRateLimiter({
   windowMs: Number(process.env.OWNER_OTP_WINDOW_MS || 10 * 60 * 1000),
   max: Number(process.env.OWNER_OTP_IP_LIMIT || 5)
@@ -141,15 +151,15 @@ router.post("/register", registerIpLimiter, registerPhoneLimiter, async (req, re
   const services = Array.isArray(req.body?.services) ? req.body.services : [];
 
   if (!displayName || !ownerName || !phone) {
-    return res.status(400).json({ error: "displayName, ownerName, and phone are required" });
+    return sendError(res, { code: "REGISTER_REQUIRED_FIELDS", message: "displayName, ownerName, and phone are required" });
   }
   if (!isValidPhone(phone)) {
-    return res.status(400).json({ error: "Valid phone is required" });
+    return sendError(res, { code: "PHONE_INVALID", message: "Valid phone is required" });
   }
 
   const existingTenants = await listTenantsForPhone(phone);
   if (existingTenants.length) {
-    return res.status(409).json({ error: "Phone already registered" });
+    return sendError(res, { code: "PHONE_ALREADY_REGISTERED", message: "Phone already registered", status: 409 });
   }
 
   try {
@@ -172,7 +182,7 @@ router.post("/register", registerIpLimiter, registerPhoneLimiter, async (req, re
       preauthToken: otp.preauthToken
     });
   } catch (err) {
-    return res.status(400).json({ error: err.message || "Failed to register owner" });
+    return sendError(res, { code: "REGISTER_FAILED", message: err.message || "Failed to register owner" });
   }
 });
 
@@ -180,28 +190,31 @@ router.post("/auth/request-otp", otpRequestIpLimiter, otpRequestPhoneLimiter, as
   const phone = normalizePhone(req.body?.phone);
   const tenantKey = req.body?.tenantKey ? String(req.body.tenantKey).trim() : "";
   if (!phone || !isValidPhone(phone)) {
-    return res.status(400).json({ error: "Valid phone is required" });
+    return sendError(res, { code: "PHONE_INVALID", message: "Valid phone is required" });
   }
   const tenants = await listTenantsForPhone(phone);
   if (!tenants.length) {
-    return res.status(404).json({ error: "Owner not found for phone" });
+    return sendError(res, { code: "OWNER_NOT_FOUND", message: "Owner not found for phone", status: 404 });
   }
   let resolvedTenantKey = tenantKey;
   if (tenantKey) {
     const link = await getOwnerTenantLink({ phone, tenantKey });
     if (!link) {
-      return res.status(404).json({ error: "Owner not linked to tenant" });
+      return sendError(res, { code: "OWNER_NOT_LINKED", message: "Owner not linked to tenant", status: 404 });
     }
   } else if (tenants.length === 1) {
     resolvedTenantKey = tenants[0].key;
   } else {
-    return res.status(409).json({ error: "Tenant selection required", tenants });
+    return res.status(409).json({
+      error: { code: "TENANT_SELECTION_REQUIRED", message: "Tenant selection required" },
+      tenants
+    });
   }
   const otp = await createOwnerOtp({ phone, tenantKey: resolvedTenantKey });
   try {
     await sendOtpSms({ to: phone, code: otp.code });
   } catch (err) {
-    return res.status(500).json({ error: "Failed to send OTP" });
+    return sendError(res, { code: "OTP_SEND_FAILED", message: "Failed to send OTP", status: 500 });
   }
   return res.json({
     status: "sent",
@@ -216,26 +229,32 @@ router.post("/auth/verify-otp", otpVerifyIpLimiter, otpVerifyPhoneLimiter, async
   const tenantKey = req.body?.tenantKey ? String(req.body.tenantKey).trim() : "";
   const code = req.body?.code ? String(req.body.code).trim() : "";
   if (!phone || !isValidPhone(phone)) {
-    return res.status(400).json({ error: "Valid phone is required" });
+    return sendError(res, { code: "PHONE_INVALID", message: "Valid phone is required" });
   }
   if (!tenantKey) {
-    return res.status(400).json({ error: "tenantKey is required" });
+    return sendError(res, { code: "TENANT_KEY_REQUIRED", message: "tenantKey is required" });
   }
   if (!code) {
-    return res.status(400).json({ error: "code is required" });
+    return sendError(res, { code: "OTP_CODE_REQUIRED", message: "code is required" });
   }
   try {
     await verifyOwnerOtp({ phone, tenantKey, code });
   } catch (err) {
-    return res.status(400).json({ error: err.message || "OTP verification failed" });
+    const message = err.message || "OTP verification failed";
+    let codeValue = "OTP_INVALID";
+    if (/not found/i.test(message)) codeValue = "OTP_NOT_FOUND";
+    if (/expired/i.test(message)) codeValue = "OTP_EXPIRED";
+    if (/locked/i.test(message)) codeValue = "OTP_LOCKED";
+    if (/already used/i.test(message)) codeValue = "OTP_USED";
+    return sendError(res, { code: codeValue, message });
   }
   const link = await getOwnerTenantLink({ phone, tenantKey });
   if (!link) {
-    return res.status(404).json({ error: "Owner not linked to tenant" });
+    return sendError(res, { code: "OWNER_NOT_LINKED", message: "Owner not linked to tenant", status: 404 });
   }
   const tenant = await getTenantByKey(tenantKey);
   if (!tenant) {
-    return res.status(404).json({ error: "Tenant not found" });
+    return sendError(res, { code: "TENANT_NOT_FOUND", message: "Tenant not found", status: 404 });
   }
   const jwt = signOwnerToken({ tenantKey, ownerId: link.owner_id, role: link.role || "owner" });
   const refresh = await createOwnerRefreshToken({
@@ -257,13 +276,13 @@ router.post("/auth/verify-otp", otpVerifyIpLimiter, otpVerifyPhoneLimiter, async
 router.post("/auth/refresh", async (req, res) => {
   const refreshToken = req.body?.refreshToken ? String(req.body.refreshToken).trim() : "";
   if (!refreshToken) {
-    return res.status(400).json({ error: "refreshToken is required" });
+    return sendError(res, { code: "REFRESH_REQUIRED", message: "refreshToken is required" });
   }
   try {
     const rotated = await rotateOwnerRefreshToken({ token: refreshToken });
     const tenant = await getTenantByKey(rotated.tenantKey);
     if (!tenant) {
-      return res.status(404).json({ error: "Tenant not found" });
+      return sendError(res, { code: "TENANT_NOT_FOUND", message: "Tenant not found", status: 404 });
     }
     const jwt = signOwnerToken({
       tenantKey: rotated.tenantKey,
@@ -280,7 +299,7 @@ router.post("/auth/refresh", async (req, res) => {
       }
     });
   } catch (err) {
-    return res.status(401).json({ error: err.message || "Refresh failed" });
+    return sendError(res, { code: "REFRESH_FAILED", message: err.message || "Refresh failed", status: 401 });
   }
 });
 
@@ -288,14 +307,14 @@ router.get("/tenants", async (req, res) => {
   const phone = normalizePhone(req.query.phone);
   const token = req.query.token ? String(req.query.token).trim() : "";
   if (!phone || !isValidPhone(phone)) {
-    return res.status(400).json({ error: "Valid phone is required" });
+    return sendError(res, { code: "PHONE_INVALID", message: "Valid phone is required" });
   }
   if (!token) {
-    return res.status(400).json({ error: "token is required" });
+    return sendError(res, { code: "PREAUTH_REQUIRED", message: "token is required" });
   }
   const ok = await validateOwnerPreauth({ phone, token });
   if (!ok) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return sendError(res, { code: "PREAUTH_INVALID", message: "Unauthorized", status: 401 });
   }
   const tenants = await listTenantsForPhone(phone);
   return res.json({ tenants });

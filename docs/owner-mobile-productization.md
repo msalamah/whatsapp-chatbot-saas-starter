@@ -253,6 +253,7 @@ Web counterpart:
 
 Acceptance checks:
 - At least OTP and registration errors use standardized codes.
+Status: complete
 
 ## 15) Owner web app alignment (apps/owner)
 

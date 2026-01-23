@@ -162,7 +162,7 @@ async function requestWithRetry<T>(path: string, options: RequestInit, token?: s
         return requestWithRetry<T>(path, options, nextToken, false);
       }
     }
-    const message = typeof data === "string" ? data : data?.error || response.statusText;
+    const message = typeof data === "string" ? data : data?.error?.message || data?.error || response.statusText;
     throw new Error(message);
   }
 
@@ -395,6 +395,42 @@ export default function App() {
     setError(null);
   };
 
+  const mapAuthError = (code: string | undefined, fallback: string) => {
+    switch (code) {
+      case "RATE_LIMITED":
+        return "Too many requests. Please wait and try again.";
+      case "PHONE_INVALID":
+        return "Enter a valid phone number with country code.";
+      case "TENANT_SELECTION_REQUIRED":
+        return "Choose your business to continue.";
+      case "OWNER_NOT_FOUND":
+        return "We couldn't find that phone number. Please register first.";
+      case "OWNER_NOT_LINKED":
+        return "This phone is not linked to the selected tenant.";
+      case "OTP_SEND_FAILED":
+        return "We couldn't send the code. Try again shortly.";
+      case "OTP_NOT_FOUND":
+      case "OTP_EXPIRED":
+        return "That code expired. Request a new one.";
+      case "OTP_LOCKED":
+        return "Too many attempts. Please wait before trying again.";
+      case "OTP_USED":
+        return "That code was already used. Request a new one.";
+      case "OTP_CODE_REQUIRED":
+        return "Enter the verification code.";
+      case "TENANT_KEY_REQUIRED":
+        return "Tenant key is required.";
+      case "PHONE_ALREADY_REGISTERED":
+        return "This phone is already registered. Try logging in.";
+      case "REGISTER_REQUIRED_FIELDS":
+        return "Business name, owner name, and phone are required.";
+      case "REGISTER_FAILED":
+        return "Registration failed. Please try again.";
+      default:
+        return fallback;
+    }
+  };
+
   const resetRegisterState = () => {
     setRegisterBusinessName("");
     setRegisterOwnerName("");
@@ -435,10 +471,12 @@ export default function App() {
       if (!response.ok) {
         if (response.status === 409 && data?.tenants) {
           setTenantOptions(data.tenants);
-          setError("Select your business");
+          setError(mapAuthError(data?.error?.code, "Select your business"));
           return;
         }
-        const message = typeof data === "string" ? data : data?.error || response.statusText;
+        const message = typeof data === "string"
+          ? data
+          : mapAuthError(data?.error?.code, data?.error?.message || response.statusText);
         throw new Error(message);
       }
       setOtpSent(true);
@@ -489,7 +527,9 @@ export default function App() {
         }
       }
       if (!response.ok) {
-        const message = typeof data === "string" ? data : data?.error || response.statusText;
+        const message = typeof data === "string"
+          ? data
+          : mapAuthError(data?.error?.code, data?.error?.message || response.statusText);
         throw new Error(message);
       }
       const credentials = data as OwnerSession;
@@ -553,7 +593,9 @@ export default function App() {
         }
       }
       if (!response.ok) {
-        const message = typeof data === "string" ? data : data?.error || response.statusText;
+        const message = typeof data === "string"
+          ? data
+          : mapAuthError(data?.error?.code, data?.error?.message || response.statusText);
         throw new Error(message);
       }
       setLoginPhone(phone);

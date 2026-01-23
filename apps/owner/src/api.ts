@@ -45,10 +45,46 @@ async function requestWithRetry(path: string, options: RequestInit, token?: stri
         return requestWithRetry(path, options, next, false);
       }
     }
-    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    const message = typeof data === "string" ? data : data?.error?.message || data?.error || res.statusText;
     throw new Error(message);
   }
   return data;
+}
+
+function mapAuthError(code: string | undefined, fallback: string) {
+  switch (code) {
+    case "RATE_LIMITED":
+      return "Too many requests. Please wait and try again.";
+    case "PHONE_INVALID":
+      return "Enter a valid phone number with country code.";
+    case "TENANT_SELECTION_REQUIRED":
+      return "Choose your business to continue.";
+    case "OWNER_NOT_FOUND":
+      return "We couldn't find that phone number. Please register first.";
+    case "OWNER_NOT_LINKED":
+      return "This phone is not linked to the selected tenant.";
+    case "OTP_SEND_FAILED":
+      return "We couldn't send the code. Try again shortly.";
+    case "OTP_NOT_FOUND":
+    case "OTP_EXPIRED":
+      return "That code expired. Request a new one.";
+    case "OTP_LOCKED":
+      return "Too many attempts. Please wait before trying again.";
+    case "OTP_USED":
+      return "That code was already used. Request a new one.";
+    case "OTP_CODE_REQUIRED":
+      return "Enter the verification code.";
+    case "TENANT_KEY_REQUIRED":
+      return "Tenant key is required.";
+    case "PHONE_ALREADY_REGISTERED":
+      return "This phone is already registered. Try logging in.";
+    case "REGISTER_REQUIRED_FIELDS":
+      return "Business name, owner name, and phone are required.";
+    case "REGISTER_FAILED":
+      return "Registration failed. Please try again.";
+    default:
+      return fallback;
+  }
 }
 
 export async function requestOwnerOtp(phone: string, tenantKey?: string) {
@@ -73,7 +109,9 @@ export async function requestOwnerOtp(phone: string, tenantKey?: string) {
     return { tenants: data?.tenants || [] };
   }
   if (!res.ok) {
-    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    const message = typeof data === "string"
+      ? data
+      : mapAuthError(data?.error?.code, data?.error?.message || res.statusText);
     throw new Error(message);
   }
   return data;
@@ -95,7 +133,9 @@ export async function verifyOwnerOtp(phone: string, tenantKey: string, code: str
     }
   }
   if (!res.ok) {
-    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    const message = typeof data === "string"
+      ? data
+      : mapAuthError(data?.error?.code, data?.error?.message || res.statusText);
     throw new Error(message);
   }
   return data as OwnerCredentials;
@@ -130,7 +170,9 @@ export async function registerOwner(payload: {
     }
   }
   if (!res.ok) {
-    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    const message = typeof data === "string"
+      ? data
+      : mapAuthError(data?.error?.code, data?.error?.message || res.statusText);
     throw new Error(message);
   }
   return data;
@@ -152,7 +194,9 @@ export async function refreshOwnerSession(refreshToken: string): Promise<OwnerCr
     }
   }
   if (!res.ok) {
-    const message = typeof data === "string" ? data : data?.error || res.statusText;
+    const message = typeof data === "string"
+      ? data
+      : mapAuthError(data?.error?.code, data?.error?.message || res.statusText);
     throw new Error(message);
   }
   return data as OwnerCredentials;
