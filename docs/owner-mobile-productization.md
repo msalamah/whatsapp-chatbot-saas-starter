@@ -357,7 +357,7 @@ Web counterpart:
 Acceptance checks:
 - No manual ISO entry needed in UI.
 - Invalid ranges are blocked client-side and reported clearly.
-Status: pending
+Status: complete
 
 ### 19) Owner profile management (edit business + owner info)
 

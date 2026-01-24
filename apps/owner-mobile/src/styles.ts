@@ -40,6 +40,20 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: "#fff"
   },
+  pickerInput: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    paddingHorizontal: 14,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  pickerText: {
+    color: "#0f172a",
+    fontWeight: "600"
+  },
   phoneRow: {
     flexDirection: "row",
     alignItems: "center",

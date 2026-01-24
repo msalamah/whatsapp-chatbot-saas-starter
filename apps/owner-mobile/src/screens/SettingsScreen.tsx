@@ -1,5 +1,6 @@
-import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from "react-native";
+import { ActivityIndicator, Alert, SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View, Platform, Modal } from "react-native";
 import React, { useEffect, useState } from "react";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useOwner } from "../state/ownerContext";
 import { styles } from "../styles";
 import { CalendarBlock, CalendarRule, OwnerCalendar } from "../types";
@@ -19,6 +20,7 @@ export function SettingsScreen() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [blockPicker, setBlockPicker] = useState<{ index: number; field: "startISO" | "endISO"; value: Date } | null>(null);
 
   useEffect(() => {
     setDraft(calendar || defaultCalendar());
@@ -77,6 +79,33 @@ export function SettingsScreen() {
     });
   };
 
+  const formatDateTimeLabel = (value: string, placeholder: string) => {
+    if (!value) return placeholder;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return placeholder;
+    return date.toLocaleString();
+  };
+
+  const openBlockPicker = (index: number, field: "startISO" | "endISO") => {
+    const value = draft.blocks[index]?.[field] || "";
+    const parsed = value ? new Date(value) : new Date();
+    setBlockPicker({ index, field, value: Number.isNaN(parsed.getTime()) ? new Date() : parsed });
+  };
+
+  const handleBlockPickerChange = (event: { type?: string }, date?: Date) => {
+    if (event?.type === "dismissed") {
+      setBlockPicker(null);
+      return;
+    }
+    if (!date || !blockPicker) return;
+    updateBlock(blockPicker.index, { [blockPicker.field]: date.toISOString() });
+    if (Platform.OS !== "ios") {
+      setBlockPicker(null);
+    } else {
+      setBlockPicker({ ...blockPicker, value: date });
+    }
+  };
+
   const removeBlock = (idx: number) =>
     setDraft((prev) => ({
       ...prev,
@@ -86,6 +115,17 @@ export function SettingsScreen() {
   const handleSave = async () => {
     setSaving(true);
     setError(null);
+    const invalidBlock = draft.blocks.find((block) => {
+      if (!block.startISO || !block.endISO) return false;
+      const start = new Date(block.startISO);
+      const end = new Date(block.endISO);
+      return Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start;
+    });
+    if (invalidBlock) {
+      setSaving(false);
+      setError("Blocked times must have an end after the start.");
+      return;
+    }
     try {
       await saveCalendar({
         ...draft,
@@ -213,20 +253,14 @@ export function SettingsScreen() {
           {draft.blocks.length === 0 && <Text style={styles.muted}>No blocked times.</Text>}
           {draft.blocks.map((block, idx) => (
             <View key={`block-${idx}`} style={styles.ruleCard}>
-              <Text style={styles.formLabel}>Start (ISO)</Text>
-              <TextInput
-                style={styles.input}
-                value={block.startISO}
-                onChangeText={(t) => updateBlock(idx, { startISO: t })}
-                placeholder="2025-01-01T09:00:00Z"
-              />
-              <Text style={styles.formLabel}>End (ISO)</Text>
-              <TextInput
-                style={styles.input}
-                value={block.endISO}
-                onChangeText={(t) => updateBlock(idx, { endISO: t })}
-                placeholder="2025-01-01T12:00:00Z"
-              />
+              <Text style={styles.formLabel}>Start</Text>
+              <TouchableOpacity style={styles.pickerInput} onPress={() => openBlockPicker(idx, "startISO")}>
+                <Text style={styles.pickerText}>{formatDateTimeLabel(block.startISO, "Select start time")}</Text>
+              </TouchableOpacity>
+              <Text style={styles.formLabel}>End</Text>
+              <TouchableOpacity style={styles.pickerInput} onPress={() => openBlockPicker(idx, "endISO")}>
+                <Text style={styles.pickerText}>{formatDateTimeLabel(block.endISO, "Select end time")}</Text>
+              </TouchableOpacity>
               <Text style={styles.formLabel}>Reason</Text>
               <TextInput
                 style={styles.input}
@@ -249,6 +283,31 @@ export function SettingsScreen() {
           </TouchableOpacity>
         </View>
       </ScrollView>
+      <Modal transparent visible={blockPicker !== null} animationType="fade" onRequestClose={() => setBlockPicker(null)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setBlockPicker(null)}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.sectionTitle}>Select time</Text>
+              <TouchableOpacity onPress={() => setBlockPicker(null)}>
+                <Text style={styles.viewSheetClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {blockPicker && (
+              <DateTimePicker
+                value={blockPicker.value}
+                mode="datetime"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={handleBlockPickerChange}
+              />
+            )}
+            {Platform.OS === "ios" ? (
+              <TouchableOpacity style={[styles.primaryButton, { marginTop: 12 }]} onPress={() => setBlockPicker(null)}>
+                <Text style={styles.primaryButtonText}>Done</Text>
+              </TouchableOpacity>
+            ) : null}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }

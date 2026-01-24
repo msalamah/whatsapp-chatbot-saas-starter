@@ -19,6 +19,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar as MonthCalendar } from "react-native-calendars";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import {
   apiRequest,
   requestOwnerOtp,
@@ -151,6 +152,7 @@ export default function App() {
   const [bookingEndISO, setBookingEndISO] = useState("");
   const [bookingNotes, setBookingNotes] = useState("");
   const [bookingSaving, setBookingSaving] = useState(false);
+  const [bookingPicker, setBookingPicker] = useState<{ target: "start" | "end"; value: Date } | null>(null);
   const [availFrom, setAvailFrom] = useState(() => new Date().toISOString());
   const [availTo, setAvailTo] = useState(() => {
     const d = new Date();
@@ -347,6 +349,40 @@ export default function App() {
         return "Registration failed. Please try again.";
       default:
         return fallback;
+    }
+  };
+
+  const formatDateTimeLabel = (value: string, placeholder: string) => {
+    if (!value) return placeholder;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return placeholder;
+    return date.toLocaleString();
+  };
+
+  const openBookingPicker = (target: "start" | "end") => {
+    const value = target === "start"
+      ? bookingStartISO
+      : bookingEndISO;
+    const parsed = value ? new Date(value) : new Date();
+    setBookingPicker({ target, value: Number.isNaN(parsed.getTime()) ? new Date() : parsed });
+  };
+
+  const handleBookingPickerChange = (event: { type?: string }, date?: Date) => {
+    if (event?.type === "dismissed") {
+      setBookingPicker(null);
+      return;
+    }
+    if (!date || !bookingPicker) return;
+    const iso = date.toISOString();
+    if (bookingPicker.target === "start") {
+      setBookingStartISO(iso);
+    } else {
+      setBookingEndISO(iso);
+    }
+    if (Platform.OS !== "ios") {
+      setBookingPicker(null);
+    } else {
+      setBookingPicker({ ...bookingPicker, value: date });
     }
   };
 
@@ -657,6 +693,12 @@ export default function App() {
   const handleSaveBooking = async () => {
     if (!bookingStartISO || !bookingEndISO || !bookingPhone) {
       Alert.alert("Missing info", "Please fill start, end, and customer phone.");
+      return;
+    }
+    const start = new Date(bookingStartISO);
+    const end = new Date(bookingEndISO);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      Alert.alert("Invalid time", "End time must be after start time.");
       return;
     }
     setBookingSaving(true);
@@ -1095,20 +1137,18 @@ export default function App() {
                 ))}
                 {services.length === 0 && <Text style={styles.muted}>No services loaded.</Text>}
               </View>
-              <Text style={styles.formLabel}>Start (ISO)</Text>
-              <TextInput
-                style={styles.input}
-                value={bookingStartISO}
-                onChangeText={setBookingStartISO}
-                placeholder="2025-01-01T09:00:00Z"
-              />
-              <Text style={styles.formLabel}>End (ISO)</Text>
-              <TextInput
-                style={styles.input}
-                value={bookingEndISO}
-                onChangeText={setBookingEndISO}
-                placeholder="2025-01-01T10:00:00Z"
-              />
+              <Text style={styles.formLabel}>Start</Text>
+              <TouchableOpacity style={styles.pickerInput} onPress={() => openBookingPicker("start")}>
+                <Text style={styles.pickerText}>
+                  {formatDateTimeLabel(bookingStartISO, "Select start time")}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.formLabel}>End</Text>
+              <TouchableOpacity style={styles.pickerInput} onPress={() => openBookingPicker("end")}>
+                <Text style={styles.pickerText}>
+                  {formatDateTimeLabel(bookingEndISO, "Select end time")}
+                </Text>
+              </TouchableOpacity>
               <View style={styles.divider} />
               <Text style={styles.settingsSubtitle}>Find availability</Text>
               <Text style={styles.formLabel}>From</Text>
@@ -1175,6 +1215,31 @@ export default function App() {
                 {bookingSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Save booking</Text>}
               </TouchableOpacity>
             </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+      <Modal transparent visible={bookingPicker !== null} animationType="fade" onRequestClose={() => setBookingPicker(null)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setBookingPicker(null)}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.sectionTitle}>Select time</Text>
+              <TouchableOpacity onPress={() => setBookingPicker(null)}>
+                <Text style={styles.viewSheetClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {bookingPicker && (
+              <DateTimePicker
+                value={bookingPicker.value}
+                mode="datetime"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={handleBookingPickerChange}
+              />
+            )}
+            {Platform.OS === "ios" ? (
+              <TouchableOpacity style={[styles.primaryButton, { marginTop: 12 }]} onPress={() => setBookingPicker(null)}>
+                <Text style={styles.primaryButtonText}>Done</Text>
+              </TouchableOpacity>
+            ) : null}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
