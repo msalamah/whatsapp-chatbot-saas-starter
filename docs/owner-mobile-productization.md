@@ -419,7 +419,7 @@ Web counterpart:
 Acceptance checks:
 - Web app can register a push subscription and store it server-side.
 - Test push reaches the browser when permission is granted.
-Status: pending
+Status: complete
 
 ### 22) UX polish and offline guidance
 

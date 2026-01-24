@@ -26,9 +26,10 @@ import { createOwnerOtp, validateOwnerPreauth, verifyOwnerOtp } from "../service
 import { sendOtpSms } from "../services/notificationService.js";
 import { createOwnerRefreshToken, rotateOwnerRefreshToken } from "../services/ownerSessionStore.js";
 import { createRateLimiter, ipRateLimiter } from "../middleware/rateLimit.js";
-import { upsertOwnerDevice } from "../services/ownerDeviceStore.js";
+import { getLatestOwnerDevice, upsertOwnerDevice } from "../services/ownerDeviceStore.js";
 import { deleteCustomerData } from "../services/privacyService.js";
 import { v4 as uuidv4 } from "uuid";
+import { sendWebPush } from "../services/webPushService.js";
 
 const router = express.Router();
 
@@ -334,8 +335,9 @@ router.post("/auth/refresh", async (req, res) => {
 });
 
 router.post("/devices", ownerAuth, async (req, res) => {
-  const token = String(req.body?.token || "").trim();
-  const platform = req.body?.platform ? String(req.body.platform).trim() : "unknown";
+  const subscription = req.body?.subscription || null;
+  const token = subscription ? JSON.stringify(subscription) : String(req.body?.token || "").trim();
+  const platform = subscription ? "webpush" : (req.body?.platform ? String(req.body.platform).trim() : "unknown");
   if (!req.owner?.ownerId) {
     return sendError(res, { code: "OWNER_REQUIRED", message: "Owner identity required", status: 401 });
   }
@@ -352,6 +354,36 @@ router.post("/devices", ownerAuth, async (req, res) => {
     return res.json({ status: "ok" });
   } catch (err) {
     return sendError(res, { code: "DEVICE_REGISTER_FAILED", message: err.message || "Failed to register device" });
+  }
+});
+
+router.post("/devices/test", ownerAuth, async (req, res) => {
+  if (process.env.NODE_ENV === "production") {
+    return sendError(res, { code: "FORBIDDEN", message: "Test push disabled", status: 403 });
+  }
+  if (!req.owner?.ownerId) {
+    return sendError(res, { code: "OWNER_REQUIRED", message: "Owner identity required", status: 401 });
+  }
+  try {
+    const device = await getLatestOwnerDevice({
+      ownerId: req.owner.ownerId,
+      tenantKey: req.owner.tenantKey,
+      platform: "webpush"
+    });
+    if (!device) {
+      return sendError(res, { code: "DEVICE_NOT_FOUND", message: "No web push subscription found", status: 404 });
+    }
+    const subscription = JSON.parse(device.token);
+    await sendWebPush({
+      subscription,
+      payload: {
+        title: "Owner portal test",
+        body: "Web push is configured correctly."
+      }
+    });
+    return res.json({ status: "sent" });
+  } catch (err) {
+    return sendError(res, { code: "PUSH_SEND_FAILED", message: err.message || "Failed to send web push" });
   }
 });
 

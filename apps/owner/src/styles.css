@@ -660,6 +660,12 @@ button.link-button {
   flex-wrap: wrap;
 }
 
+.profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.75rem;
+}
+
 .divider {
   height: 1px;
   background: var(--stroke);

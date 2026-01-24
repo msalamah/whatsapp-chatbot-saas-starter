@@ -90,6 +90,7 @@ export default function App() {
   const [bookingNotes, setBookingNotes] = useState("");
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSaving, setBookingSaving] = useState(false);
+  const [webPushStatus, setWebPushStatus] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -351,6 +352,56 @@ export default function App() {
     }
   }
 
+  function urlBase64ToUint8Array(base64String: string) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  }
+
+  async function registerWebPush() {
+    if (!token) return;
+    const publicKey = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined;
+    if (!publicKey) {
+      setWebPushStatus("Web push is not configured.");
+      return;
+    }
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+      setWebPushStatus("Push notifications are not supported in this browser.");
+      return;
+    }
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setWebPushStatus("Enable notifications to receive booking alerts.");
+        return;
+      }
+      const registration = await navigator.serviceWorker.register("/sw.js");
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey)
+        });
+      }
+      await fetch(`${import.meta.env.VITE_API_BASE_URL || window.location.origin}/owner/devices`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({ subscription })
+      });
+      setWebPushStatus("Web push enabled.");
+    } catch (err) {
+      setWebPushStatus(err instanceof Error ? err.message : "Failed to enable web push.");
+    }
+  }
+
   function toLocalInput(value: string) {
     if (!value) return "";
     const date = new Date(value);
@@ -532,6 +583,7 @@ export default function App() {
           </div>
           {profileNotice && <p className="notice">{profileNotice}</p>}
           {profileError && <p className="error">{profileError}</p>}
+          {webPushStatus && <p className="muted">{webPushStatus}</p>}
           <div className="profile-grid">
             <div className="profile-row">
               <label>Business name</label>
@@ -575,6 +627,11 @@ export default function App() {
                 placeholder="Timezone (e.g. America/New_York)"
               />
             </div>
+          </div>
+          <div className="profile-actions">
+            <button className="secondary" onClick={registerWebPush} disabled={profileSaving}>
+              Enable web notifications
+            </button>
           </div>
           {phoneVerification ? (
             <div className="profile-verify">

@@ -13,3 +13,18 @@ export async function upsertOwnerDevice({ ownerId, tenantKey, token, platform })
     [uuidv4(), ownerId, tenantKey, token, platform || "unknown"]
   );
 }
+
+export async function getLatestOwnerDevice({ ownerId, tenantKey, platform }) {
+  if (!ownerId || !tenantKey) {
+    throw new Error("ownerId and tenantKey are required");
+  }
+  const res = await query(
+    `SELECT * FROM owner_devices
+     WHERE owner_id = $1 AND tenant_key = $2
+     ${platform ? "AND platform = $3" : ""}
+     ORDER BY updated_at DESC
+     LIMIT 1`,
+    platform ? [ownerId, tenantKey, platform] : [ownerId, tenantKey]
+  );
+  return res.rows[0] || null;
+}
