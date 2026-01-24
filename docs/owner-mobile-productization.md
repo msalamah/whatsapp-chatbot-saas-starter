@@ -243,6 +243,7 @@ Web counterpart:
 Acceptance checks:
 - No large monolithic component.
 - API layer handles auth headers and error normalization.
+Status: complete
 
 ## 14) Backend error shape + mobile handling (backend + app)
 

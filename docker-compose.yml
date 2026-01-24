@@ -10,7 +10,7 @@ services:
     env_file:
       - .env
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - DATABASE_URL=postgres://chatbot:chatbot@db:5432/chatbot
     volumes:
       - ./src/tenants/tenants.json:/app/src/tenants/tenants.json
