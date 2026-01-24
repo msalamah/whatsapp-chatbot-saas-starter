@@ -16,7 +16,10 @@ import {
   downloadCsv,
   fetchAnalytics,
   fetchCalendarSettings,
-  saveCalendarSettings
+  saveCalendarSettings,
+  fetchOwnerProfile,
+  updateOwnerProfile,
+  confirmOwnerPhoneChange
 } from "./api";
 import { OwnerAuthForm } from "./components/OwnerAuthForm";
 import { PendingList } from "./components/PendingList";
@@ -35,7 +38,8 @@ import {
   ServiceFormState,
   CustomerDetail,
   AnalyticsSummary,
-  OwnerCalendar
+  OwnerCalendar,
+  OwnerProfile
 } from "./types";
 import { CalendarSettings } from "./components/CalendarSettings";
 
@@ -63,6 +67,19 @@ export default function App() {
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
   const [customerDetail, setCustomerDetail] = useState<CustomerDetail | null>(null);
   const [calendar, setCalendar] = useState<OwnerCalendar | null>(null);
+  const [profile, setProfile] = useState<OwnerProfile | null>(null);
+  const [profileDraft, setProfileDraft] = useState({
+    businessName: "",
+    ownerName: "",
+    email: "",
+    phone: "",
+    timezone: ""
+  });
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileNotice, setProfileNotice] = useState<string | null>(null);
+  const [phoneVerification, setPhoneVerification] = useState<{ phone: string; expiresAt?: string } | null>(null);
+  const [phoneCode, setPhoneCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -91,6 +108,17 @@ export default function App() {
     return () => setRefreshHandler(null);
   }, [refreshToken]);
 
+  useEffect(() => {
+    if (!profile) return;
+    setProfileDraft({
+      businessName: profile.tenant?.name || "",
+      ownerName: profile.owner?.name || "",
+      email: profile.owner?.email || "",
+      phone: profile.owner?.phone || "",
+      timezone: profile.tenant?.timezone || ""
+    });
+  }, [profile]);
+
   function applySession(res: { token: string; refreshToken?: string; tenant: TenantInfo }) {
     localStorage.setItem(TOKEN_KEY, res.token);
     if (res.refreshToken) {
@@ -112,13 +140,14 @@ export default function App() {
     if (!forceToken) return;
     setLoading(true);
     try {
-      const [pendingData, appointmentData, customersData, servicesData, analyticsData, calendarData] = await Promise.all([
+      const [pendingData, appointmentData, customersData, servicesData, analyticsData, calendarData, profileData] = await Promise.all([
         fetchPending(forceToken),
         fetchAppointments(forceToken, { limit: APPOINTMENT_LIMIT, range: appointmentRange }),
         fetchCustomers(forceToken, { limit: CUSTOMER_LIMIT, query: customerQuery }),
         fetchServices(forceToken),
         fetchAnalytics(forceToken),
-        fetchCalendarSettings(forceToken)
+        fetchCalendarSettings(forceToken),
+        fetchOwnerProfile(forceToken)
       ]);
       setPending(pendingData);
       setAppointments(appointmentData);
@@ -126,6 +155,7 @@ export default function App() {
       setServices(servicesData);
       setAnalytics(analyticsData);
       setCalendar(calendarData);
+      setProfile(profileData);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to refresh data");
     } finally {
@@ -256,6 +286,61 @@ export default function App() {
     }
   }
 
+  async function handleProfileSave() {
+    if (!token) return;
+    setProfileSaving(true);
+    setProfileError(null);
+    setProfileNotice(null);
+    try {
+      const emailValue = profileDraft.email.trim();
+      const phoneValue = profileDraft.phone.trim();
+      const result = await updateOwnerProfile(token, {
+        businessName: profileDraft.businessName.trim() || undefined,
+        ownerName: profileDraft.ownerName.trim() || undefined,
+        email: emailValue ? emailValue : null,
+        phone: phoneValue || undefined,
+        timezone: profileDraft.timezone.trim() || undefined
+      });
+      if (result.status === "phone_verification_required") {
+        setPhoneVerification({ phone: result.phone || phoneValue, expiresAt: result.expiresAt });
+        setProfileNotice("Verify the new phone number to finish updating.");
+      } else {
+        setPhoneVerification(null);
+        setProfileNotice("Profile updated.");
+      }
+      if (result.profile) {
+        setProfile(result.profile);
+      }
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Failed to update profile");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
+  async function handleConfirmPhone() {
+    if (!token || !phoneVerification) return;
+    if (!phoneCode.trim()) {
+      setProfileError("Enter the verification code.");
+      return;
+    }
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      const result = await confirmOwnerPhoneChange(token, phoneVerification.phone, phoneCode.trim());
+      if (result.profile) {
+        setProfile(result.profile);
+      }
+      setProfileNotice("Phone number updated.");
+      setPhoneVerification(null);
+      setPhoneCode("");
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Failed to verify phone");
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
@@ -270,6 +355,7 @@ export default function App() {
     setCustomers([]);
     setServices([]);
     setCustomerDetail(null);
+    setProfile(null);
   }
 
   if (!isLoggedIn) {
@@ -361,6 +447,80 @@ export default function App() {
 
         <section className="section-card">
           <CalendarSettings calendar={calendar} saving={calendarSaving} onSave={handleSaveCalendar} />
+        </section>
+
+        <section className="section-card">
+          <div className="section-header">
+            <div>
+              <h3>Profile</h3>
+              <p className="muted">Update business and contact details.</p>
+            </div>
+            <button onClick={handleProfileSave} disabled={profileSaving}>
+              {profileSaving ? "Saving…" : "Save"}
+            </button>
+          </div>
+          {profileNotice && <p className="notice">{profileNotice}</p>}
+          {profileError && <p className="error">{profileError}</p>}
+          <div className="profile-grid">
+            <div className="profile-row">
+              <label>Business name</label>
+              <input
+                value={profileDraft.businessName}
+                onChange={(e) => setProfileDraft((prev) => ({ ...prev, businessName: e.target.value }))}
+                placeholder="Business name"
+              />
+            </div>
+            <div className="profile-row">
+              <label>Owner name</label>
+              <input
+                value={profileDraft.ownerName}
+                onChange={(e) => setProfileDraft((prev) => ({ ...prev, ownerName: e.target.value }))}
+                placeholder="Owner name"
+              />
+            </div>
+            <div className="profile-row">
+              <label>Email</label>
+              <input
+                value={profileDraft.email}
+                onChange={(e) => setProfileDraft((prev) => ({ ...prev, email: e.target.value }))}
+                placeholder="Email (optional)"
+                type="email"
+              />
+            </div>
+            <div className="profile-row">
+              <label>Phone</label>
+              <input
+                value={profileDraft.phone}
+                onChange={(e) => setProfileDraft((prev) => ({ ...prev, phone: e.target.value }))}
+                placeholder="Include country code"
+                type="tel"
+              />
+            </div>
+            <div className="profile-row">
+              <label>Timezone</label>
+              <input
+                value={profileDraft.timezone}
+                onChange={(e) => setProfileDraft((prev) => ({ ...prev, timezone: e.target.value }))}
+                placeholder="Timezone (e.g. America/New_York)"
+              />
+            </div>
+          </div>
+          {phoneVerification ? (
+            <div className="profile-verify">
+              <div>
+                <label>Verification code</label>
+                <input
+                  value={phoneCode}
+                  onChange={(e) => setPhoneCode(e.target.value)}
+                  placeholder="Enter code"
+                  inputMode="numeric"
+                />
+              </div>
+              <button className="secondary" onClick={handleConfirmPhone} disabled={profileSaving}>
+                {profileSaving ? "Verifying…" : "Verify phone"}
+              </button>
+            </div>
+          ) : null}
         </section>
       </div>
       {customerDetail && <CustomerDetailCard detail={customerDetail} onClose={() => setCustomerDetail(null)} />}

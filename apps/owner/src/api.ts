@@ -6,7 +6,8 @@ import {
   ServiceRecord,
   ServiceFormState,
   AnalyticsSummary,
-  OwnerCalendar
+  OwnerCalendar,
+  OwnerProfile
 } from "./types";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || window.location.origin;
@@ -200,6 +201,22 @@ export async function refreshOwnerSession(refreshToken: string): Promise<OwnerCr
     throw new Error(message);
   }
   return data as OwnerCredentials;
+}
+
+export async function fetchOwnerProfile(token: string): Promise<OwnerProfile> {
+  const data = await request("/owner/profile", {}, token);
+  return data.profile;
+}
+
+export async function updateOwnerProfile(
+  token: string,
+  payload: { ownerName?: string; email?: string | null; phone?: string; businessName?: string; timezone?: string }
+) {
+  return request("/owner/profile", { method: "PUT", body: JSON.stringify(payload) }, token);
+}
+
+export async function confirmOwnerPhoneChange(token: string, phone: string, code: string) {
+  return request("/owner/profile/confirm-phone", { method: "POST", body: JSON.stringify({ phone, code }) }, token);
 }
 
 export async function fetchPending(token: string): Promise<PendingBooking[]> {

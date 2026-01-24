@@ -13,7 +13,15 @@ import { generateCustomersCsv, generateAppointmentsCsv } from "../services/csvEx
 import { getOwnerAnalytics } from "../services/analyticsService.js";
 import { getCalendar, upsertCalendar } from "../services/calendarService.js";
 import { upsertCustomer } from "../services/customerStore.js";
-import { listTenantsForPhone, getOwnerTenantLink, upsertOwner, linkOwnerToTenant } from "../services/ownerStore.js";
+import {
+  listTenantsForPhone,
+  getOwnerTenantLink,
+  upsertOwner,
+  linkOwnerToTenant,
+  findOwnerById,
+  findOwnerByPhone,
+  updateOwnerById
+} from "../services/ownerStore.js";
 import { createOwnerOtp, validateOwnerPreauth, verifyOwnerOtp } from "../services/ownerOtpStore.js";
 import { sendOtpSms } from "../services/notificationService.js";
 import { createOwnerRefreshToken, rotateOwnerRefreshToken } from "../services/ownerSessionStore.js";
@@ -50,6 +58,26 @@ function sendError(res, { code, message, status = 400, details }) {
       ...(details ? { details } : {})
     }
   });
+}
+
+async function buildOwnerProfile({ ownerId, tenantKey }) {
+  const owner = await findOwnerById(ownerId);
+  if (!owner) return null;
+  const tenant = await getTenantByKey(tenantKey);
+  if (!tenant) return null;
+  return {
+    owner: {
+      id: owner.id,
+      name: owner.display_name,
+      phone: owner.phone,
+      email: owner.email
+    },
+    tenant: {
+      key: tenant.key,
+      name: tenant.displayName,
+      timezone: tenant.calendar?.timezone || "UTC"
+    }
+  };
 }
 
 const otpRequestIpLimiter = ipRateLimiter({
@@ -349,6 +377,115 @@ router.get("/portal", (_req, res) => {
 });
 
 router.use(ownerAuth);
+
+router.get("/profile", async (req, res) => {
+  if (!req.owner?.ownerId) {
+    return sendError(res, { code: "OWNER_REQUIRED", message: "Owner identity required", status: 401 });
+  }
+  const profile = await buildOwnerProfile({ ownerId: req.owner.ownerId, tenantKey: req.owner.tenantKey });
+  if (!profile) {
+    return sendError(res, { code: "OWNER_NOT_FOUND", message: "Owner profile not found", status: 404 });
+  }
+  res.json({ profile });
+});
+
+router.put("/profile", async (req, res) => {
+  if (!req.owner?.ownerId) {
+    return sendError(res, { code: "OWNER_REQUIRED", message: "Owner identity required", status: 401 });
+  }
+  const ownerName = req.body?.ownerName !== undefined ? String(req.body.ownerName || "").trim() : undefined;
+  const email = req.body?.email !== undefined ? String(req.body.email || "").trim() : undefined;
+  const businessName = req.body?.businessName !== undefined ? String(req.body.businessName || "").trim() : undefined;
+  const timezone = req.body?.timezone !== undefined ? String(req.body.timezone || "").trim() : undefined;
+  const rawPhone = req.body?.phone !== undefined ? normalizePhone(req.body.phone) : undefined;
+
+  const owner = await findOwnerById(req.owner.ownerId);
+  if (!owner) {
+    return sendError(res, { code: "OWNER_NOT_FOUND", message: "Owner profile not found", status: 404 });
+  }
+
+  const emailValue = email === undefined ? undefined : email || null;
+  if (ownerName !== undefined || emailValue !== undefined) {
+    await updateOwnerById({
+      ownerId: req.owner.ownerId,
+      displayName: ownerName !== undefined ? ownerName : undefined,
+      email: emailValue
+    });
+  }
+
+  if (businessName !== undefined || timezone !== undefined) {
+    const tenant = await getTenantByKey(req.owner.tenantKey);
+    if (!tenant) {
+      return sendError(res, { code: "TENANT_NOT_FOUND", message: "Tenant not found", status: 404 });
+    }
+    const calendar = timezone ? { ...tenant.calendar, timezone } : tenant.calendar;
+    await updateTenant(req.owner.tenantKey, {
+      ...(businessName ? { displayName: businessName } : {}),
+      ...(timezone ? { calendar } : {})
+    });
+  }
+
+  const phone = rawPhone ? rawPhone : undefined;
+  const phoneChange = phone && phone !== owner.phone;
+  if (phoneChange) {
+    if (!isValidPhone(phone)) {
+      return sendError(res, { code: "PHONE_INVALID", message: "Valid phone is required" });
+    }
+    const existing = await findOwnerByPhone(phone);
+    if (existing && existing.id !== owner.id) {
+      return sendError(res, { code: "PHONE_ALREADY_REGISTERED", message: "Phone already registered", status: 409 });
+    }
+    const otp = await createOwnerOtp({ phone, tenantKey: req.owner.tenantKey });
+    try {
+      await sendOtpSms({ to: phone, code: otp.code });
+    } catch (err) {
+      return sendError(res, { code: "OTP_SEND_FAILED", message: "Failed to send OTP", status: 500 });
+    }
+    const profile = await buildOwnerProfile({ ownerId: req.owner.ownerId, tenantKey: req.owner.tenantKey });
+    return res.json({
+      status: "phone_verification_required",
+      phone,
+      tenantKey: req.owner.tenantKey,
+      expiresAt: otp.expiresAt,
+      profile
+    });
+  }
+
+  const profile = await buildOwnerProfile({ ownerId: req.owner.ownerId, tenantKey: req.owner.tenantKey });
+  return res.json({ status: "updated", profile });
+});
+
+router.post("/profile/confirm-phone", otpVerifyPhoneLimiter, async (req, res) => {
+  if (!req.owner?.ownerId) {
+    return sendError(res, { code: "OWNER_REQUIRED", message: "Owner identity required", status: 401 });
+  }
+  const phone = normalizePhone(req.body?.phone);
+  const code = req.body?.code ? String(req.body.code).trim() : "";
+  if (!phone || !isValidPhone(phone)) {
+    return sendError(res, { code: "PHONE_INVALID", message: "Valid phone is required" });
+  }
+  if (!code) {
+    return sendError(res, { code: "OTP_CODE_REQUIRED", message: "code is required" });
+  }
+  try {
+    await verifyOwnerOtp({ phone, tenantKey: req.owner.tenantKey, code });
+  } catch (err) {
+    const message = err.message || "OTP verification failed";
+    let codeValue = "OTP_INVALID";
+    if (/not found/i.test(message)) codeValue = "OTP_NOT_FOUND";
+    if (/expired/i.test(message)) codeValue = "OTP_EXPIRED";
+    if (/locked/i.test(message)) codeValue = "OTP_LOCKED";
+    if (/already used/i.test(message)) codeValue = "OTP_USED";
+    return sendError(res, { code: codeValue, message });
+  }
+  const existing = await findOwnerByPhone(phone);
+  if (existing && existing.id !== req.owner.ownerId) {
+    return sendError(res, { code: "PHONE_ALREADY_REGISTERED", message: "Phone already registered", status: 409 });
+  }
+  await updateOwnerById({ ownerId: req.owner.ownerId, phone });
+  const profile = await buildOwnerProfile({ ownerId: req.owner.ownerId, tenantKey: req.owner.tenantKey });
+  return res.json({ status: "phone_updated", profile });
+});
 
 router.get("/pending", async (req, res) => {
   const tenantKey = req.owner.tenantKey;

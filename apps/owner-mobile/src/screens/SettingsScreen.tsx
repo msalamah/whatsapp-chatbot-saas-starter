@@ -15,16 +15,54 @@ const defaultCalendar = (): OwnerCalendar => ({
 });
 
 export function SettingsScreen() {
-  const { session, calendar, refreshCalendar, saveCalendar, logout } = useOwner();
+  const { session, calendar, refreshCalendar, saveCalendar, logout, profile, fetchProfile, updateProfile, confirmPhoneChange } = useOwner();
   const [draft, setDraft] = useState<OwnerCalendar>(calendar || defaultCalendar());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blockPicker, setBlockPicker] = useState<{ index: number; field: "startISO" | "endISO"; value: Date } | null>(null);
+  const [profileDraft, setProfileDraft] = useState({
+    businessName: "",
+    ownerName: "",
+    email: "",
+    phone: "",
+    timezone: ""
+  });
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileNotice, setProfileNotice] = useState<string | null>(null);
+  const [phoneVerification, setPhoneVerification] = useState<{ phone: string; expiresAt?: string } | null>(null);
+  const [phoneCode, setPhoneCode] = useState("");
 
   useEffect(() => {
     setDraft(calendar || defaultCalendar());
   }, [calendar]);
+
+  useEffect(() => {
+    if (profile || profileLoading || !fetchProfile) return;
+    (async () => {
+      setProfileLoading(true);
+      try {
+        await fetchProfile();
+      } catch {
+        // handled via form error on save
+      } finally {
+        setProfileLoading(false);
+      }
+    })();
+  }, [profile, profileLoading, fetchProfile]);
+
+  useEffect(() => {
+    if (!profile) return;
+    setProfileDraft({
+      businessName: profile.tenant?.name || "",
+      ownerName: profile.owner?.name || "",
+      email: profile.owner?.email || "",
+      phone: profile.owner?.phone || "",
+      timezone: profile.tenant?.timezone || ""
+    });
+  }, [profile]);
 
   useEffect(() => {
     if (!calendar) {
@@ -144,6 +182,54 @@ export function SettingsScreen() {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleProfileSave = async () => {
+    setProfileSaving(true);
+    setProfileError(null);
+    setProfileNotice(null);
+    try {
+      const emailValue = profileDraft.email.trim();
+      const phoneValue = profileDraft.phone.trim();
+      const result = await updateProfile({
+        businessName: profileDraft.businessName.trim() || undefined,
+        ownerName: profileDraft.ownerName.trim() || undefined,
+        email: emailValue ? emailValue : null,
+        phone: phoneValue || undefined,
+        timezone: profileDraft.timezone.trim() || undefined
+      });
+      if (result.status === "phone_verification_required") {
+        setPhoneVerification({ phone: result.phone || phoneValue, expiresAt: result.expiresAt });
+        setProfileNotice("Verify the new phone number to finish updating.");
+      } else {
+        setPhoneVerification(null);
+        setProfileNotice("Profile updated.");
+      }
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Failed to update profile");
+    } finally {
+      setProfileSaving(false);
+    }
+  };
+
+  const handleConfirmPhone = async () => {
+    if (!phoneVerification) return;
+    if (!phoneCode.trim()) {
+      setProfileError("Enter the verification code.");
+      return;
+    }
+    setProfileSaving(true);
+    setProfileError(null);
+    try {
+      await confirmPhoneChange(phoneVerification.phone, phoneCode.trim());
+      setProfileNotice("Phone number updated.");
+      setPhoneVerification(null);
+      setPhoneCode("");
+    } catch (err) {
+      setProfileError(err instanceof Error ? err.message : "Failed to verify phone");
+    } finally {
+      setProfileSaving(false);
     }
   };
 
@@ -273,6 +359,74 @@ export function SettingsScreen() {
               </TouchableOpacity>
             </View>
           ))}
+        </View>
+
+        <View style={styles.settingsCard}>
+          <View style={styles.settingsHeaderRow}>
+            <Text style={styles.settingsTitle}>Profile</Text>
+            <TouchableOpacity onPress={handleProfileSave} disabled={profileSaving || profileLoading}>
+              {profileSaving ? <ActivityIndicator /> : <Text style={styles.settingsSave}>Save</Text>}
+            </TouchableOpacity>
+          </View>
+          {profileNotice && <Text style={styles.notice}>{profileNotice}</Text>}
+          {profileError && <Text style={styles.error}>{profileError}</Text>}
+          <Text style={styles.formLabel}>Business name</Text>
+          <TextInput
+            style={styles.input}
+            value={profileDraft.businessName}
+            onChangeText={(value) => setProfileDraft((prev) => ({ ...prev, businessName: value }))}
+            placeholder="Business name"
+          />
+          <Text style={styles.formLabel}>Owner name</Text>
+          <TextInput
+            style={styles.input}
+            value={profileDraft.ownerName}
+            onChangeText={(value) => setProfileDraft((prev) => ({ ...prev, ownerName: value }))}
+            placeholder="Owner name"
+          />
+          <Text style={styles.formLabel}>Email</Text>
+          <TextInput
+            style={styles.input}
+            value={profileDraft.email}
+            onChangeText={(value) => setProfileDraft((prev) => ({ ...prev, email: value }))}
+            placeholder="Email (optional)"
+            keyboardType="email-address"
+            autoCapitalize="none"
+          />
+          <Text style={styles.formLabel}>Phone</Text>
+          <TextInput
+            style={styles.input}
+            value={profileDraft.phone}
+            onChangeText={(value) => setProfileDraft((prev) => ({ ...prev, phone: value }))}
+            placeholder="Include country code"
+            keyboardType="phone-pad"
+          />
+          <Text style={styles.formLabel}>Timezone</Text>
+          <TextInput
+            style={styles.input}
+            value={profileDraft.timezone}
+            onChangeText={(value) => setProfileDraft((prev) => ({ ...prev, timezone: value }))}
+            placeholder="Timezone (e.g. America/New_York)"
+            autoCapitalize="none"
+          />
+          {phoneVerification ? (
+            <View style={styles.ruleCard}>
+              <Text style={styles.formLabel}>Verification code</Text>
+              <TextInput
+                style={styles.input}
+                value={phoneCode}
+                onChangeText={setPhoneCode}
+                placeholder="Enter code"
+                keyboardType="number-pad"
+              />
+              {phoneVerification.expiresAt ? (
+                <Text style={styles.helperText}>Code expires soon.</Text>
+              ) : null}
+              <TouchableOpacity style={styles.primaryButton} onPress={handleConfirmPhone} disabled={profileSaving}>
+                {profileSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Verify phone</Text>}
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
 
         <View style={styles.settingsCard}>

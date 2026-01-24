@@ -40,6 +40,7 @@ import {
   AvailabilitySlot,
   CustomerRecord,
   OwnerCalendar,
+  OwnerProfile,
   OwnerSession,
   PendingBooking,
   ServiceRecord
@@ -144,6 +145,7 @@ export default function App() {
   const [customersHasMore, setCustomersHasMore] = useState(false);
   const [services, setServices] = useState<ServiceRecord[]>([]);
   const [calendar, setCalendar] = useState<OwnerCalendar | null>(null);
+  const [profile, setProfile] = useState<OwnerProfile | null>(null);
   const [bookingVisible, setBookingVisible] = useState(false);
   const [bookingName, setBookingName] = useState("");
   const [bookingPhone, setBookingPhone] = useState("");
@@ -573,6 +575,7 @@ export default function App() {
     setAppointments([]);
     setCustomers([]);
     setServices([]);
+    setProfile(null);
   };
 
   const handleResolve = async (customerId: string, action: "approve" | "reject") => {
@@ -660,6 +663,47 @@ export default function App() {
       );
       setCalendar(data.calendar || null);
       return data.calendar || null;
+    },
+    [jwt]
+  );
+
+  const fetchProfile = useCallback(async () => {
+    if (!jwt) return null;
+    const data = await apiRequest<{ profile: OwnerProfile }>("/owner/profile", {}, jwt);
+    setProfile(data.profile || null);
+    return data.profile || null;
+  }, [jwt]);
+
+  const updateProfile = useCallback(
+    async (payload: {
+      ownerName?: string;
+      email?: string | null;
+      phone?: string;
+      businessName?: string;
+      timezone?: string;
+    }) => {
+      if (!jwt) throw new Error("Not authenticated");
+      const data = await apiRequest<{ status: string; profile: OwnerProfile; phone?: string; expiresAt?: string }>(
+        "/owner/profile",
+        { method: "PUT", body: JSON.stringify(payload) },
+        jwt
+      );
+      setProfile(data.profile || null);
+      return data;
+    },
+    [jwt]
+  );
+
+  const confirmPhoneChange = useCallback(
+    async (phone: string, code: string) => {
+      if (!jwt) throw new Error("Not authenticated");
+      const data = await apiRequest<{ status: string; profile: OwnerProfile }>(
+        "/owner/profile/confirm-phone",
+        { method: "POST", body: JSON.stringify({ phone, code }) },
+        jwt
+      );
+      setProfile(data.profile || null);
+      return data;
     },
     [jwt]
   );
@@ -1055,6 +1099,10 @@ export default function App() {
         calendar,
         refreshCalendar,
         saveCalendar,
+        profile,
+        fetchProfile,
+        updateProfile,
+        confirmPhoneChange,
         createBooking,
         openBooking
       }}

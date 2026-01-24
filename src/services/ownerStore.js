@@ -21,6 +21,42 @@ export async function findOwnerByPhone(phone) {
   return res.rows[0] || null;
 }
 
+export async function findOwnerById(ownerId) {
+  if (!ownerId) throw new Error("ownerId is required");
+  const res = await query("SELECT * FROM owners WHERE id = $1", [ownerId]);
+  return res.rows[0] || null;
+}
+
+export async function updateOwnerById({ ownerId, phone, email, displayName }) {
+  if (!ownerId) throw new Error("ownerId is required");
+  const fields = [];
+  const values = [];
+  let idx = 1;
+  if (phone !== undefined) {
+    fields.push(`phone = $${idx++}`);
+    values.push(phone);
+  }
+  if (email !== undefined) {
+    fields.push(`email = $${idx++}`);
+    values.push(email);
+  }
+  if (displayName !== undefined) {
+    fields.push(`display_name = $${idx++}`);
+    values.push(displayName);
+  }
+  if (!fields.length) {
+    return findOwnerById(ownerId);
+  }
+  values.push(ownerId);
+  const res = await query(
+    `UPDATE owners SET ${fields.join(", ")}, updated_at = now()
+     WHERE id = $${idx}
+     RETURNING *`,
+    values
+  );
+  return res.rows[0] || null;
+}
+
 export async function linkOwnerToTenant({ ownerId, tenantKey, role = "owner" }) {
   if (!ownerId || !tenantKey) throw new Error("ownerId and tenantKey are required");
   await query(

@@ -4,6 +4,7 @@ import {
   Appointment,
   CustomerRecord,
   OwnerCalendar,
+  OwnerProfile,
   OwnerSession,
   PendingBooking,
   ServiceRecord
@@ -38,6 +39,16 @@ export type OwnerContextValue = {
   calendar: OwnerCalendar | null;
   refreshCalendar: () => Promise<OwnerCalendar | null>;
   saveCalendar: (cal: OwnerCalendar) => Promise<OwnerCalendar | null>;
+  profile: OwnerProfile | null;
+  fetchProfile: () => Promise<OwnerProfile | null>;
+  updateProfile: (payload: {
+    ownerName?: string;
+    email?: string | null;
+    phone?: string;
+    businessName?: string;
+    timezone?: string;
+  }) => Promise<{ status: string; profile: OwnerProfile; phone?: string; expiresAt?: string }>;
+  confirmPhoneChange: (phone: string, code: string) => Promise<{ status: string; profile: OwnerProfile }>;
   createBooking: (payload: {
     customerName: string;
     customerPhone: string;

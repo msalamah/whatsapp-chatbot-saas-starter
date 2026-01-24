@@ -91,3 +91,17 @@ export interface ServiceFormState {
   currency: string;
   description: string;
 }
+
+export interface OwnerProfile {
+  owner: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+  };
+  tenant: {
+    key: string;
+    name: string;
+    timezone: string;
+  };
+}

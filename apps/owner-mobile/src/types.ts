@@ -75,3 +75,17 @@ export type ServiceRecord = {
   maxMinutes?: number;
   description?: string;
 };
+
+export type OwnerProfile = {
+  owner: {
+    id: string;
+    name: string | null;
+    phone: string | null;
+    email: string | null;
+  };
+  tenant: {
+    key: string;
+    name: string;
+    timezone: string;
+  };
+};

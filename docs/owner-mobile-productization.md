@@ -379,7 +379,7 @@ Web counterpart:
 Acceptance checks:
 - Owner can update business name/email/timezone and see changes reflected after refresh.
 - Phone change requires OTP verification.
-Status: pending
+Status: complete
 
 ### 20) Web manual booking creation
 

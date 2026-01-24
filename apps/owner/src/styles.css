@@ -625,6 +625,27 @@ button.link-button {
   gap: 0.5rem;
 }
 
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.profile-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.profile-verify {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .divider {
   height: 1px;
   background: var(--stroke);
