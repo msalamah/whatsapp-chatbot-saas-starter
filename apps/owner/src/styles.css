@@ -547,6 +547,24 @@ button.danger {
   box-sizing: border-box;
 }
 
+.phone-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.country-select {
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: #f8fafc;
+  padding: 0 0.5rem;
+}
+
+.phone-input {
+  flex: 1;
+}
+
 .auth-stack {
   display: flex;
   flex-direction: column;

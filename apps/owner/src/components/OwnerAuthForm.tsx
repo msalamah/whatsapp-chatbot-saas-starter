@@ -12,6 +12,36 @@ type RegisterServiceDraft = {
   currency: string;
 };
 
+type PhoneCountry = {
+  code: string;
+  name: string;
+  dial: string;
+};
+
+const PHONE_COUNTRIES: PhoneCountry[] = [
+  { code: "US", name: "United States", dial: "+1" },
+  { code: "GB", name: "United Kingdom", dial: "+44" },
+  { code: "IL", name: "Israel", dial: "+972" },
+  { code: "AE", name: "United Arab Emirates", dial: "+971" },
+  { code: "SA", name: "Saudi Arabia", dial: "+966" },
+  { code: "DE", name: "Germany", dial: "+49" },
+  { code: "FR", name: "France", dial: "+33" },
+  { code: "IN", name: "India", dial: "+91" }
+];
+const DEFAULT_COUNTRY = PHONE_COUNTRIES[0];
+
+const formatE164 = (country: PhoneCountry, input: string) => {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+  const digits = trimmed.replace(/[^\d]/g, "");
+  if (trimmed.startsWith("+")) {
+    return `+${digits}`;
+  }
+  return digits ? `${country.dial}${digits}` : "";
+};
+
+const isValidE164 = (value: string) => /^\+\d{7,15}$/.test(value);
+
 interface Props {
   loading?: boolean;
   error?: string | null;
@@ -34,7 +64,9 @@ interface Props {
 }
 
 export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onVerifyOtp, onRegister }: Props) {
-  const [loginPhone, setLoginPhone] = useState("");
+  const [loginPhoneLocal, setLoginPhoneLocal] = useState("");
+  const [loginCountry, setLoginCountry] = useState<PhoneCountry>(DEFAULT_COUNTRY);
+  const [otpPhone, setOtpPhone] = useState("");
   const [loginTenantKey, setLoginTenantKey] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -45,7 +77,8 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
   const [registerMode, setRegisterMode] = useState(false);
   const [registerBusinessName, setRegisterBusinessName] = useState("");
   const [registerOwnerName, setRegisterOwnerName] = useState("");
-  const [registerPhone, setRegisterPhone] = useState("");
+  const [registerPhoneLocal, setRegisterPhoneLocal] = useState("");
+  const [registerCountry, setRegisterCountry] = useState<PhoneCountry>(DEFAULT_COUNTRY);
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerTimezone, setRegisterTimezone] = useState(() => {
     try {
@@ -63,9 +96,9 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
   }, [cooldown]);
 
   const requestOtp = async (tenantKey?: string) => {
-    const phone = loginPhone.trim();
-    if (!phone.startsWith("+")) {
-      setNotice("Include country code (e.g., +1...)");
+    const phone = formatE164(loginCountry, loginPhoneLocal);
+    if (!isValidE164(phone)) {
+      setNotice("Enter a valid phone number with country code.");
       return;
     }
     const result = await onRequestOtp(phone, tenantKey || loginTenantKey.trim());
@@ -80,19 +113,26 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
     setLoginTenantKey(resolvedTenantKey);
     setOtpCode("");
     setCooldown(30);
+    setOtpPhone(phone);
     setNotice("Code sent. Check your phone.");
   };
 
   const handleVerify = async (event: FormEvent) => {
     event.preventDefault();
     setNotice(null);
-    await onVerifyOtp(loginPhone.trim(), otpTenantKey.trim(), otpCode.trim());
+    const phone = otpPhone || formatE164(loginCountry, loginPhoneLocal);
+    if (!isValidE164(phone)) {
+      setNotice("Enter a valid phone number with country code.");
+      return;
+    }
+    await onVerifyOtp(phone, otpTenantKey.trim(), otpCode.trim());
   };
 
   const handleRegister = async (event: FormEvent) => {
     event.preventDefault();
-    if (!registerPhone.trim().startsWith("+")) {
-      setNotice("Include country code (e.g., +1...)");
+    const phone = formatE164(registerCountry, registerPhoneLocal);
+    if (!isValidE164(phone)) {
+      setNotice("Enter a valid phone number with country code.");
       return;
     }
     setNotice(null);
@@ -112,20 +152,22 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
     const result = await onRegister({
       displayName: registerBusinessName.trim(),
       ownerName: registerOwnerName.trim(),
-      phone: registerPhone.trim(),
+      phone,
       email: registerEmail.trim() || undefined,
       timezone: registerTimezone.trim() || undefined,
       services: services.length ? services : undefined
     });
     if (!result.tenantKey) return;
-    setLoginPhone(registerPhone.trim());
+    setLoginPhoneLocal(registerPhoneLocal.trim());
+    setLoginCountry(registerCountry);
+    setOtpPhone(phone);
     setLoginTenantKey(result.tenantKey);
     setOtpSent(true);
     setOtpTenantKey(result.tenantKey);
     setRegisterMode(false);
     setRegisterBusinessName("");
     setRegisterOwnerName("");
-    setRegisterPhone("");
+    setRegisterPhoneLocal("");
     setRegisterEmail("");
     setRegisterServices([]);
     setCooldown(30);
@@ -137,7 +179,29 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
       <h2>Owner access</h2>
       {!otpSent && !registerMode ? (
         <form className="auth-stack" onSubmit={(event) => { event.preventDefault(); requestOtp(); }}>
-          <input value={loginPhone} onChange={(e) => setLoginPhone(e.target.value)} placeholder="Phone number" type="tel" />
+          <div className="phone-row">
+            <select
+              className="country-select"
+              value={loginCountry.code}
+              onChange={(e) => {
+                const next = PHONE_COUNTRIES.find((country) => country.code === e.target.value) || DEFAULT_COUNTRY;
+                setLoginCountry(next);
+              }}
+            >
+              {PHONE_COUNTRIES.map((country) => (
+                <option key={country.code} value={country.code}>
+                  {country.name} ({country.dial})
+                </option>
+              ))}
+            </select>
+            <input
+              value={loginPhoneLocal}
+              onChange={(e) => setLoginPhoneLocal(e.target.value)}
+              placeholder="Phone number"
+              type="tel"
+              className="phone-input"
+            />
+          </div>
           <input value={loginTenantKey} onChange={(e) => setLoginTenantKey(e.target.value)} placeholder="Tenant key (optional)" />
           {tenantOptions.length > 0 && (
             <div className="tenant-picker">
@@ -156,7 +220,7 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
               ))}
             </div>
           )}
-          <button type="submit" disabled={loading || !loginPhone.trim()}>
+          <button type="submit" disabled={loading || !loginPhoneLocal.trim()}>
             {loading ? "Sending…" : "Send code"}
           </button>
           {notice && <p className="notice">{notice}</p>}
@@ -173,7 +237,29 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
           <h3>Create account</h3>
           <input value={registerBusinessName} onChange={(e) => setRegisterBusinessName(e.target.value)} placeholder="Business name" />
           <input value={registerOwnerName} onChange={(e) => setRegisterOwnerName(e.target.value)} placeholder="Owner name" />
-          <input value={registerPhone} onChange={(e) => setRegisterPhone(e.target.value)} placeholder="Phone number" type="tel" />
+          <div className="phone-row">
+            <select
+              className="country-select"
+              value={registerCountry.code}
+              onChange={(e) => {
+                const next = PHONE_COUNTRIES.find((country) => country.code === e.target.value) || DEFAULT_COUNTRY;
+                setRegisterCountry(next);
+              }}
+            >
+              {PHONE_COUNTRIES.map((country) => (
+                <option key={country.code} value={country.code}>
+                  {country.name} ({country.dial})
+                </option>
+              ))}
+            </select>
+            <input
+              value={registerPhoneLocal}
+              onChange={(e) => setRegisterPhoneLocal(e.target.value)}
+              placeholder="Phone number"
+              type="tel"
+              className="phone-input"
+            />
+          </div>
           <input value={registerEmail} onChange={(e) => setRegisterEmail(e.target.value)} placeholder="Email (optional)" type="email" />
           <input value={registerTimezone} onChange={(e) => setRegisterTimezone(e.target.value)} placeholder="Timezone (e.g. America/New_York)" />
           <div className="divider" />
@@ -248,7 +334,7 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
       {otpSent ? (
         <form className="auth-stack" onSubmit={handleVerify}>
           <h3>Verify code</h3>
-          <p className="muted">Code sent to {loginPhone}</p>
+          <p className="muted">Code sent to {otpPhone || formatE164(loginCountry, loginPhoneLocal)}</p>
           <p className="muted">Tenant: {otpTenantKey}</p>
           <input value={otpCode} onChange={(e) => setOtpCode(e.target.value)} placeholder="Verification code" inputMode="numeric" />
           {notice && <p className="notice">{notice}</p>}
@@ -259,7 +345,15 @@ export function OwnerAuthForm({ loading = false, error = null, onRequestOtp, onV
           <button type="button" className="secondary" onClick={() => requestOtp(otpTenantKey)} disabled={loading || cooldown > 0}>
             {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
           </button>
-          <button type="button" className="link-button" onClick={() => setOtpSent(false)} disabled={loading}>
+          <button
+            type="button"
+            className="link-button"
+            onClick={() => {
+              setOtpSent(false);
+              setOtpPhone("");
+            }}
+            disabled={loading}
+          >
             Edit phone
           </button>
         </form>

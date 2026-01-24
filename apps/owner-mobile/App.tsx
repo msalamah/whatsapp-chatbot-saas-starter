@@ -59,10 +59,49 @@ type RegisterServiceDraft = {
   currency: string;
 };
 
+type PhoneCountry = {
+  code: string;
+  name: string;
+  dial: string;
+};
+
+const PHONE_COUNTRIES: PhoneCountry[] = [
+  { code: "US", name: "United States", dial: "+1" },
+  { code: "GB", name: "United Kingdom", dial: "+44" },
+  { code: "IL", name: "Israel", dial: "+972" },
+  { code: "AE", name: "United Arab Emirates", dial: "+971" },
+  { code: "SA", name: "Saudi Arabia", dial: "+966" },
+  { code: "DE", name: "Germany", dial: "+49" },
+  { code: "FR", name: "France", dial: "+33" },
+  { code: "IN", name: "India", dial: "+91" }
+];
+const DEFAULT_COUNTRY = PHONE_COUNTRIES[0];
+
+const formatE164 = (country: PhoneCountry, input: string) => {
+  const trimmed = input.trim();
+  if (!trimmed) return "";
+  const digits = trimmed.replace(/[^\d]/g, "");
+  if (trimmed.startsWith("+")) {
+    return `+${digits}`;
+  }
+  return digits ? `${country.dial}${digits}` : "";
+};
+
+const isValidE164 = (value: string) => /^\+\d{7,15}$/.test(value);
+
+const splitPhone = (value: string) => {
+  const match = PHONE_COUNTRIES.find((country) => value.startsWith(country.dial));
+  if (!match) {
+    return { country: DEFAULT_COUNTRY, local: value.replace(/^\+/, "") };
+  }
+  return { country: match, local: value.slice(match.dial.length) };
+};
+
 const STORAGE_KEY = "owner-mobile-session";
 const PHONE_KEY = "owner-mobile-phone";
 const REFRESH_KEY = "owner-mobile-refresh";
 const DEVICE_TOKEN_KEY = "owner-mobile-device-token";
+const COUNTRY_KEY = "owner-mobile-country";
 const CUSTOMER_PAGE_SIZE = 25;
  
 
@@ -71,7 +110,8 @@ export default function App() {
   const [registerMode, setRegisterMode] = useState(false);
   const [registerBusinessName, setRegisterBusinessName] = useState("");
   const [registerOwnerName, setRegisterOwnerName] = useState("");
-  const [registerPhone, setRegisterPhone] = useState("");
+  const [registerPhoneLocal, setRegisterPhoneLocal] = useState("");
+  const [registerCountry, setRegisterCountry] = useState<PhoneCountry>(DEFAULT_COUNTRY);
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerTimezone, setRegisterTimezone] = useState(() => {
     try {
@@ -81,7 +121,9 @@ export default function App() {
     }
   });
   const [registerServices, setRegisterServices] = useState<RegisterServiceDraft[]>([]);
-  const [loginPhone, setLoginPhone] = useState("");
+  const [loginPhoneLocal, setLoginPhoneLocal] = useState("");
+  const [loginCountry, setLoginCountry] = useState<PhoneCountry>(DEFAULT_COUNTRY);
+  const [otpPhone, setOtpPhone] = useState("");
   const [loginTenantKey, setLoginTenantKey] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
@@ -90,6 +132,7 @@ export default function App() {
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [tenantOptions, setTenantOptions] = useState<TenantOption[]>([]);
   const [authNotice, setAuthNotice] = useState<string | null>(null);
+  const [countryPicker, setCountryPicker] = useState<"login" | "register" | null>(null);
   const [session, setSession] = useState<OwnerSession | null>(null);
   const [jwt, setJwt] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
@@ -136,11 +179,28 @@ export default function App() {
         if (stored) setRefreshToken(stored);
       })
       .catch(() => undefined);
-    SecureStore.getItemAsync(PHONE_KEY)
-      .then((stored) => {
-        if (stored) setLoginPhone(stored);
-      })
-      .catch(() => undefined);
+    (async () => {
+      try {
+        const storedCountry = await SecureStore.getItemAsync(COUNTRY_KEY);
+        const match = storedCountry ? PHONE_COUNTRIES.find((country) => country.code === storedCountry) : null;
+        if (match) {
+          setLoginCountry(match);
+          setRegisterCountry(match);
+        }
+        const storedPhone = await SecureStore.getItemAsync(PHONE_KEY);
+        if (storedPhone) {
+          const parsed = splitPhone(storedPhone);
+          setLoginPhoneLocal(parsed.local);
+          setOtpPhone(storedPhone);
+          if (!match) {
+            setLoginCountry(parsed.country);
+            setRegisterCountry(parsed.country);
+          }
+        }
+      } catch {
+        // best-effort restore
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -251,6 +311,7 @@ export default function App() {
     setTenantOptions([]);
     setError(null);
     setAuthNotice(null);
+    setOtpPhone("");
   };
 
   const mapAuthError = (code: string | undefined, fallback: string) => {
@@ -292,22 +353,36 @@ export default function App() {
   const resetRegisterState = () => {
     setRegisterBusinessName("");
     setRegisterOwnerName("");
-    setRegisterPhone("");
+    setRegisterPhoneLocal("");
     setRegisterEmail("");
     setRegisterServices([]);
     setError(null);
     setAuthNotice(null);
   };
 
+  const handleCountrySelect = async (target: "login" | "register", country: PhoneCountry) => {
+    if (target === "login") {
+      setLoginCountry(country);
+    } else {
+      setRegisterCountry(country);
+    }
+    setCountryPicker(null);
+    try {
+      await SecureStore.setItemAsync(COUNTRY_KEY, country.code);
+    } catch {
+      // best-effort persistence
+    }
+  };
+
   const requestOtp = async (targetTenantKey?: string) => {
-    const phone = loginPhone.trim();
+    const phone = formatE164(loginCountry, loginPhoneLocal);
     const resolvedTenantKey = (targetTenantKey || loginTenantKey || "").trim();
     if (!phone) {
       setError("Phone number is required");
       return;
     }
-    if (!phone.startsWith("+")) {
-      setError("Include country code (e.g., +1...)");
+    if (!isValidE164(phone)) {
+      setError("Enter a valid phone number with country code.");
       return;
     }
     setLoading(true);
@@ -328,6 +403,7 @@ export default function App() {
         throw new Error(message);
       }
       setOtpSent(true);
+      setOtpPhone(phone);
       setOtpTenantKey(data?.tenantKey || resolvedTenantKey);
       setLoginTenantKey(data?.tenantKey || resolvedTenantKey);
       setOtpExpiresAt(data?.expiresAt || null);
@@ -343,11 +419,15 @@ export default function App() {
   };
 
   const handleVerifyOtp = async () => {
-    const phone = loginPhone.trim();
+    const phone = otpPhone || formatE164(loginCountry, loginPhoneLocal);
     const tenantKey = otpTenantKey.trim();
     const code = otpCode.trim();
     if (!phone) {
       setError("Phone number is required");
+      return;
+    }
+    if (!isValidE164(phone)) {
+      setError("Enter a valid phone number with country code.");
       return;
     }
     if (!tenantKey) {
@@ -385,13 +465,13 @@ export default function App() {
   };
 
   const handleRegister = async () => {
-    const phone = registerPhone.trim();
+    const phone = formatE164(registerCountry, registerPhoneLocal);
     if (!registerBusinessName.trim() || !registerOwnerName.trim() || !phone) {
       setError("Business name, owner name, and phone are required");
       return;
     }
-    if (!phone.startsWith("+")) {
-      setError("Include country code (e.g., +1...)");
+    if (!isValidE164(phone)) {
+      setError("Enter a valid phone number with country code.");
       return;
     }
     setLoading(true);
@@ -426,12 +506,14 @@ export default function App() {
           : mapAuthError(data?.error?.code, data?.error?.message || response.statusText);
         throw new Error(message);
       }
-      setLoginPhone(phone);
+      setLoginPhoneLocal(registerPhoneLocal.trim());
+      setLoginCountry(registerCountry);
       setLoginTenantKey(data?.tenantKey || "");
       setOtpSent(true);
       setOtpTenantKey(data?.tenantKey || "");
       setOtpExpiresAt(data?.expiresAt || null);
       setOtpCooldown(30);
+      setOtpPhone(phone);
       await SecureStore.setItemAsync(PHONE_KEY, phone);
       setAuthNotice("Account created. Verify the code we just sent.");
       setRegisterMode(false);
@@ -662,14 +744,19 @@ export default function App() {
           <Text style={styles.title}>Owner login</Text>
           {!otpSent && !registerMode ? (
             <>
-              <TextInput
-                placeholder="Phone number"
-                autoCapitalize="none"
-                keyboardType="phone-pad"
-                style={styles.input}
-                value={loginPhone}
-                onChangeText={setLoginPhone}
-              />
+              <View style={styles.phoneRow}>
+                <TouchableOpacity style={styles.countryButton} onPress={() => setCountryPicker("login")}>
+                  <Text style={styles.countryButtonText}>{loginCountry.code} {loginCountry.dial}</Text>
+                </TouchableOpacity>
+                <TextInput
+                  placeholder="Phone number"
+                  autoCapitalize="none"
+                  keyboardType="phone-pad"
+                  style={[styles.input, styles.phoneInput]}
+                  value={loginPhoneLocal}
+                  onChangeText={setLoginPhoneLocal}
+                />
+              </View>
               <TextInput
                 placeholder="Tenant key (optional)"
                 autoCapitalize="none"
@@ -721,14 +808,19 @@ export default function App() {
                 value={registerOwnerName}
                 onChangeText={setRegisterOwnerName}
               />
-              <TextInput
-                placeholder="Phone number"
-                autoCapitalize="none"
-                keyboardType="phone-pad"
-                style={styles.input}
-                value={registerPhone}
-                onChangeText={setRegisterPhone}
-              />
+              <View style={styles.phoneRow}>
+                <TouchableOpacity style={styles.countryButton} onPress={() => setCountryPicker("register")}>
+                  <Text style={styles.countryButtonText}>{registerCountry.code} {registerCountry.dial}</Text>
+                </TouchableOpacity>
+                <TextInput
+                  placeholder="Phone number"
+                  autoCapitalize="none"
+                  keyboardType="phone-pad"
+                  style={[styles.input, styles.phoneInput]}
+                  value={registerPhoneLocal}
+                  onChangeText={setRegisterPhoneLocal}
+                />
+              </View>
               <TextInput
                 placeholder="Email (optional)"
                 autoCapitalize="none"
@@ -832,7 +924,7 @@ export default function App() {
           {otpSent ? (
             <>
               {authNotice && <Text style={styles.notice}>{authNotice}</Text>}
-              <Text style={styles.helperText}>Code sent to {loginPhone}</Text>
+              <Text style={styles.helperText}>Code sent to {otpPhone || formatE164(loginCountry, loginPhoneLocal)}</Text>
               <Text style={styles.helperText}>Tenant: {otpTenantKey}</Text>
               <TextInput
                 placeholder="Verification code"
@@ -860,6 +952,35 @@ export default function App() {
               </TouchableOpacity>
             </>
           ) : null}
+          <Modal
+            transparent
+            visible={countryPicker !== null}
+            animationType="fade"
+            onRequestClose={() => setCountryPicker(null)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalCard}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.sectionTitle}>Select country</Text>
+                  <TouchableOpacity onPress={() => setCountryPicker(null)}>
+                    <Text style={styles.ghostButtonText}>Close</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView contentContainerStyle={styles.modalContent}>
+                  {PHONE_COUNTRIES.map((country) => (
+                    <TouchableOpacity
+                      key={country.code}
+                      style={styles.countryOption}
+                      onPress={() => handleCountrySelect(countryPicker || "login", country)}
+                    >
+                      <Text style={styles.countryOptionTitle}>{country.name}</Text>
+                      <Text style={styles.countryOptionSubtitle}>{country.dial}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
+          </Modal>
         </View>
       </SafeAreaView>
     );

@@ -40,6 +40,28 @@ export const styles = StyleSheet.create({
     paddingHorizontal: 14,
     backgroundColor: "#fff"
   },
+  phoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10
+  },
+  countryButton: {
+    height: 48,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center"
+  },
+  countryButtonText: {
+    fontWeight: "600",
+    color: "#0f172a"
+  },
+  phoneInput: {
+    flex: 1
+  },
   primaryButton: {
     backgroundColor: "#0ea5e9",
     borderRadius: 12,
@@ -344,6 +366,21 @@ export const styles = StyleSheet.create({
   modalContent: {
     paddingVertical: 12,
     gap: 8
+  },
+  countryOption: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e2e8f0",
+    padding: 12,
+    backgroundColor: "#f8fafc"
+  },
+  countryOptionTitle: {
+    fontWeight: "600",
+    color: "#0f172a"
+  },
+  countryOptionSubtitle: {
+    color: "#64748b",
+    fontSize: 12
   },
   viewSheet: {
     backgroundColor: "#fff",

@@ -311,3 +311,130 @@ Status: complete
 - [x] Services CRUD
 - [x] Calendar settings
 - [ ] Push notification registration
+
+## Task Force: Product gaps to close before first clients
+
+These are the remaining gaps after core OTP + registration + owner portal parity. Each task is written so Codex can execute it directly.
+
+### 17) Phone input UX (country code selector + formatting)
+
+Goal: Prevent registration/login failures caused by missing country codes or invalid formatting.
+
+Implementation details:
+- Mobile (`apps/owner-mobile`):
+  - Replace the raw `TextInput` for phone with a phone input component that supports country selection and E.164 output.
+  - Persist the last selected country to reduce friction on next login.
+  - Display validation errors inline (below the input).
+  - Ensure all OTP/register requests send the E.164 value.
+- Backend:
+  - Keep validation strict, but return error codes that map to user-friendly hints ("Include country code", "Invalid phone format").
+
+Web counterpart:
+- Update `apps/owner/src/components/OwnerAuthForm.tsx` to use the same phone input behavior and validation hints.
+
+Acceptance checks:
+- User can pick a country and input a phone without manually typing `+`.
+- Submitting with a local number produces an actionable error and does not send a request.
+Status: complete
+
+### 18) Date/time pickers for booking + calendar blocks
+
+Goal: Remove raw ISO inputs for bookings and block times to reduce errors.
+
+Implementation details:
+- Mobile:
+  - Replace ISO `TextInput`s in the booking modal with date/time pickers.
+  - Replace ISO `TextInput`s in calendar blocks (Settings screen) with date/time pickers.
+  - Convert picker selections into ISO strings before submitting to backend.
+  - Add guardrails (end time must be after start time).
+- Backend:
+  - Keep existing ISO parsing; return clear error codes for invalid time ranges.
+
+Web counterpart:
+- Add booking creation UI (see Task 20) with date/time pickers.
+- Update calendar blocks in `apps/owner/src/components/CalendarSettings.tsx` to use date/time pickers.
+
+Acceptance checks:
+- No manual ISO entry needed in UI.
+- Invalid ranges are blocked client-side and reported clearly.
+Status: pending
+
+### 19) Owner profile management (edit business + owner info)
+
+Goal: Allow owners to update business and contact info without admin intervention.
+
+Implementation details:
+- Backend:
+  - Add `GET /owner/profile` and `PUT /owner/profile` (JWT required).
+  - Fields: business name, owner name, email, phone (optional), timezone.
+  - Validate phone changes (E.164) and require OTP re-verify on phone change.
+- Mobile:
+  - Add a profile screen under Settings with editable fields.
+  - Handle phone-change OTP verification flow.
+  - Cache latest profile in state and refresh on app resume.
+
+Web counterpart:
+- Add a profile section in `apps/owner/src/App.tsx` and implement the same edit + phone-change OTP flow.
+
+Acceptance checks:
+- Owner can update business name/email/timezone and see changes reflected after refresh.
+- Phone change requires OTP verification.
+Status: pending
+
+### 20) Web manual booking creation
+
+Goal: Achieve parity with the mobile “Add booking” flow.
+
+Implementation details:
+- Web:
+  - Add an “Add booking” CTA and modal in `apps/owner/src/App.tsx`.
+  - Fields: customer name, phone, service selection, start/end time, notes.
+  - Add availability helper (optional) or use same endpoint as mobile if implemented.
+  - Use `/owner/appointments/manual` to create bookings.
+
+Web counterpart:
+- This is the web parity task for mobile’s existing booking modal.
+
+Acceptance checks:
+- Owner can create a manual booking from the web and it appears in appointments list and calendar.
+Status: pending
+
+### 21) Web push registration (parity with mobile)
+
+Goal: Enable web push notifications to match mobile’s device registration.
+
+Implementation details:
+- Backend:
+  - Extend `/owner/devices` to accept web push subscriptions (endpoint + keys).
+  - Store subscription payload and platform type.
+  - Add helper to send a test push (dev-only).
+- Web:
+  - Add Service Worker file to `apps/owner/public/`.
+  - Generate VAPID keys and expose the public key to the web app.
+  - Request notification permission, create a subscription, and POST to `/owner/devices`.
+
+Web counterpart:
+- This is the web parity task for mobile push token registration.
+
+Acceptance checks:
+- Web app can register a push subscription and store it server-side.
+- Test push reaches the browser when permission is granted.
+Status: pending
+
+### 22) UX polish and offline guidance
+
+Goal: Make the app resilient and client-ready.
+
+Implementation details:
+- Mobile:
+  - Add consistent empty states and error banners across all screens.
+  - Add offline banner and retry actions for API failures.
+  - Replace "Go" and generic button labels with clearer actions.
+- Web:
+  - Align empty states and error messaging with mobile.
+  - Add a persistent top-level error banner for auth/network failures.
+
+Acceptance checks:
+- Every list has a meaningful empty state.
+- Offline or failed requests show a consistent and actionable message.
+Status: pending
