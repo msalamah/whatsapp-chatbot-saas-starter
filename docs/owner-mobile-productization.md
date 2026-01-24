@@ -397,7 +397,7 @@ Web counterpart:
 
 Acceptance checks:
 - Owner can create a manual booking from the web and it appears in appointments list and calendar.
-Status: pending
+Status: complete
 
 ### 21) Web push registration (parity with mobile)
 

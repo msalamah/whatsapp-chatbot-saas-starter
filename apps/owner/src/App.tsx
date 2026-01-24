@@ -19,7 +19,8 @@ import {
   saveCalendarSettings,
   fetchOwnerProfile,
   updateOwnerProfile,
-  confirmOwnerPhoneChange
+  confirmOwnerPhoneChange,
+  createManualBooking
 } from "./api";
 import { OwnerAuthForm } from "./components/OwnerAuthForm";
 import { PendingList } from "./components/PendingList";
@@ -80,6 +81,15 @@ export default function App() {
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
   const [phoneVerification, setPhoneVerification] = useState<{ phone: string; expiresAt?: string } | null>(null);
   const [phoneCode, setPhoneCode] = useState("");
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingName, setBookingName] = useState("");
+  const [bookingPhone, setBookingPhone] = useState("");
+  const [bookingServiceId, setBookingServiceId] = useState("");
+  const [bookingStart, setBookingStart] = useState("");
+  const [bookingEnd, setBookingEnd] = useState("");
+  const [bookingNotes, setBookingNotes] = useState("");
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const [bookingSaving, setBookingSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -341,6 +351,66 @@ export default function App() {
     }
   }
 
+  function toLocalInput(value: string) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString().slice(0, 16);
+  }
+
+  function fromLocalInput(value: string) {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    return date.toISOString();
+  }
+
+  function openBookingModal() {
+    const now = new Date();
+    const end = new Date(now);
+    end.setMinutes(end.getMinutes() + 60);
+    setBookingStart(now.toISOString());
+    setBookingEnd(end.toISOString());
+    setBookingServiceId(services[0]?.id || "");
+    setBookingError(null);
+    setBookingOpen(true);
+  }
+
+  async function handleSaveBooking() {
+    if (!token) return;
+    if (!bookingStart || !bookingEnd || !bookingPhone.trim()) {
+      setBookingError("Start, end, and customer phone are required.");
+      return;
+    }
+    const start = new Date(bookingStart);
+    const end = new Date(bookingEnd);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      setBookingError("End time must be after start time.");
+      return;
+    }
+    setBookingSaving(true);
+    setBookingError(null);
+    try {
+      await createManualBooking(token, {
+        customerName: bookingName.trim() || undefined,
+        customerPhone: bookingPhone.trim(),
+        serviceId: bookingServiceId || undefined,
+        startISO: bookingStart,
+        endISO: bookingEnd,
+        notes: bookingNotes.trim() || undefined
+      });
+      setBookingOpen(false);
+      setBookingName("");
+      setBookingPhone("");
+      setBookingNotes("");
+      await refreshData(token);
+    } catch (err) {
+      setBookingError(err instanceof Error ? err.message : "Failed to create booking");
+    } finally {
+      setBookingSaving(false);
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
@@ -386,6 +456,7 @@ export default function App() {
                 Open Calendar
               </button>
             )}
+            <button onClick={openBookingModal}>Add booking</button>
             <button className="ghost" onClick={() => token && downloadCsv("/owner/exports/customers", token)}>Export customers</button>
             <button className="ghost" onClick={() => token && downloadCsv("/owner/exports/appointments", token)}>Export appointments</button>
             <button className="ghost" onClick={handleLogout}>Logout</button>
@@ -523,6 +594,71 @@ export default function App() {
           ) : null}
         </section>
       </div>
+      {bookingOpen && (
+        <div className="customers-overlay">
+          <div className="booking-panel section-card">
+            <div className="section-header">
+              <div>
+                <h3>Add booking</h3>
+                <p className="muted">Create a manual appointment.</p>
+              </div>
+              <button className="ghost" onClick={() => setBookingOpen(false)}>Close</button>
+            </div>
+            {bookingError && <p className="error">{bookingError}</p>}
+            <div className="profile-grid">
+              <div className="profile-row">
+                <label>Customer name</label>
+                <input value={bookingName} onChange={(e) => setBookingName(e.target.value)} placeholder="Customer name" />
+              </div>
+              <div className="profile-row">
+                <label>Customer phone</label>
+                <input value={bookingPhone} onChange={(e) => setBookingPhone(e.target.value)} placeholder="Phone number" type="tel" />
+              </div>
+              <div className="profile-row">
+                <label>Service</label>
+                <select value={bookingServiceId} onChange={(e) => setBookingServiceId(e.target.value)}>
+                  <option value="">Select service</option>
+                  {services.map((svc) => (
+                    <option key={svc.id} value={svc.id}>
+                      {svc.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="profile-row">
+                <label>Start</label>
+                <input
+                  type="datetime-local"
+                  value={toLocalInput(bookingStart)}
+                  onChange={(e) => setBookingStart(fromLocalInput(e.target.value))}
+                />
+              </div>
+              <div className="profile-row">
+                <label>End</label>
+                <input
+                  type="datetime-local"
+                  value={toLocalInput(bookingEnd)}
+                  onChange={(e) => setBookingEnd(fromLocalInput(e.target.value))}
+                />
+              </div>
+            </div>
+            <div className="profile-row" style={{ marginTop: "0.75rem" }}>
+              <label>Notes</label>
+              <textarea
+                value={bookingNotes}
+                onChange={(e) => setBookingNotes(e.target.value)}
+                placeholder="Optional notes"
+                rows={3}
+              />
+            </div>
+            <div className="booking-actions">
+              <button onClick={handleSaveBooking} disabled={bookingSaving}>
+                {bookingSaving ? "Saving…" : "Save booking"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {customerDetail && <CustomerDetailCard detail={customerDetail} onClose={() => setCustomerDetail(null)} />}
       {showCustomersPage && (
         <div className="customers-overlay">

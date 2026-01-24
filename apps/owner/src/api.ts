@@ -261,6 +261,13 @@ export async function deleteService(token: string, serviceId: string) {
   return data;
 }
 
+export async function createManualBooking(
+  token: string,
+  payload: { customerName?: string; customerPhone?: string; serviceId?: string; serviceName?: string; startISO: string; endISO: string; notes?: string }
+) {
+  return request("/owner/appointments/manual", { method: "POST", body: JSON.stringify(payload) }, token);
+}
+
 export async function fetchCustomerDetail(token: string, customerId: string) {
   const data = await request(`/owner/customers/${customerId}`, {}, token);
   return data;

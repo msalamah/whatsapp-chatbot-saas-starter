@@ -492,9 +492,23 @@ button.danger {
   overflow: hidden;
 }
 
+.booking-panel {
+  width: min(720px, 95vw);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
 .customers-panel-body {
   margin-top: 1rem;
   overflow-y: auto;
+}
+
+.booking-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 1rem;
 }
 
 .metadata-block {
