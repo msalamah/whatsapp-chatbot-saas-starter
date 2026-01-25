@@ -395,7 +395,7 @@ Implementation details:
 
 Acceptance checks:
 - Confirmation/cancellation content is readable and correctly formatted.
-Status: pending
+Status: complete
 
 ### P1-4) Owner blackout ranges (date + time)
 

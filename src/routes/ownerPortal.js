@@ -167,6 +167,33 @@ function formatBookingDateTime(iso, timezone) {
   return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: timezone || "UTC" });
 }
 
+function resolveTenantLanguage(tenant) {
+  const calendarLang = tenant?.calendar?.language;
+  const envLang = process.env.DEFAULT_LANGUAGE;
+  const raw = String(calendarLang || envLang || "en").trim().toLowerCase();
+  return raw || "en";
+}
+
+function buildBookingMessage({ type, businessName, serviceLabel, slotLabel, timezone, language }) {
+  const lang = language || "en";
+  const templates = {
+    en: {
+      confirmed: `Your booking is confirmed at ${businessName} for ${serviceLabel} on ${slotLabel} (${timezone}).`,
+      cancelled: `Your booking at ${businessName} for ${serviceLabel} on ${slotLabel} has been cancelled.`
+    },
+    ar: {
+      confirmed: `تم تأكيد حجزك لدى ${businessName} لخدمة ${serviceLabel} بتاريخ ${slotLabel} (${timezone}).`,
+      cancelled: `تم إلغاء حجزك لدى ${businessName} لخدمة ${serviceLabel} بتاريخ ${slotLabel}.`
+    },
+    he: {
+      confirmed: `ההזמנה שלך אושרה ב-${businessName} עבור ${serviceLabel} בתאריך ${slotLabel} (${timezone}).`,
+      cancelled: `ההזמנה שלך ב-${businessName} עבור ${serviceLabel} בתאריך ${slotLabel} בוטלה.`
+    }
+  };
+  const fallback = templates.en[type] || templates.en.confirmed;
+  return (templates[lang] && templates[lang][type]) || fallback;
+}
+
 router.post("/login", async (req, res) => {
   const { tenantKey, token } = req.body || {};
   if (!tenantKey || !token) {
@@ -701,7 +728,15 @@ router.post("/appointments/manual", async (req, res) => {
     const resolvedService = serviceId ? getServiceById(tenant, serviceId) : null;
     const serviceLabel = serviceName || resolvedService?.name || "Service";
     const businessName = tenant?.displayName || "your salon";
-    const message = `Your booking is confirmed at ${businessName} for ${serviceLabel} on ${slotLabel} (${timezone}).`;
+    const language = resolveTenantLanguage(tenant);
+    const message = buildBookingMessage({
+      type: "confirmed",
+      businessName,
+      serviceLabel,
+      slotLabel,
+      timezone,
+      language
+    });
     try {
       await sendText(tenantKey, customerPhone, message);
     } catch (err) {
@@ -749,7 +784,15 @@ router.post("/appointments/:appointmentId/cancel", async (req, res) => {
   if (appointment.customer_id) {
     const serviceLabel = appointment.service_name || "Service";
     const businessName = tenant?.displayName || "your salon";
-    const message = `Your booking at ${businessName} for ${serviceLabel} on ${slotLabel} has been cancelled.`;
+    const language = resolveTenantLanguage(tenant);
+    const message = buildBookingMessage({
+      type: "cancelled",
+      businessName,
+      serviceLabel,
+      slotLabel,
+      timezone,
+      language
+    });
     try {
       await sendText(tenantKey, appointment.customer_id, message);
     } catch (err) {
