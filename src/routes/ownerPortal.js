@@ -9,7 +9,8 @@ import {
   listAppointmentsForCustomer,
   createAppointment,
   getAppointmentById,
-  cancelAppointment
+  cancelAppointment,
+  cancelAppointmentsInRange
 } from "../services/appointmentStore.js";
 import { listCustomersForTenant, getCustomerDetail } from "../services/customerStore.js";
 import { listServicesForTenantKey, updateTenant } from "../tenants/tenantManager.js";
@@ -808,6 +809,57 @@ router.post("/appointments/:appointmentId/cancel", async (req, res) => {
     }
   }
   return res.json({ status: "cancelled", appointment: cancelled });
+});
+
+router.post("/appointments/cancel-range", async (req, res) => {
+  const tenantKey = req.owner.tenantKey;
+  const startISO = req.body?.startISO ? String(req.body.startISO) : "";
+  const endISO = req.body?.endISO ? String(req.body.endISO) : "";
+  const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+  if (!startISO || !endISO) {
+    return sendError(res, { code: "RANGE_REQUIRED", message: "startISO and endISO are required" });
+  }
+  const start = new Date(startISO);
+  const end = new Date(endISO);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+    return sendError(res, { code: "RANGE_INVALID", message: "Invalid time range" });
+  }
+  const tenant = await getTenantByKey(tenantKey);
+  const calendar = await getCalendar(tenantKey);
+  const timezone = calendar?.timezone || tenant?.calendar?.timezone || "UTC";
+  const language = resolveTenantLanguage(tenant);
+
+  const cancelled = await cancelAppointmentsInRange({ tenantKey, startISO, endISO, reason });
+  const failedNotifications = [];
+  for (const appt of cancelled) {
+    if (!appt.customer_id) continue;
+    const slotLabel = appt.start_iso ? formatBookingDateTime(appt.start_iso, timezone) : "";
+    const serviceLabel = appt.service_name || "Service";
+    const businessName = tenant?.displayName || "your salon";
+    const message = buildBookingMessage({
+      type: "cancelled",
+      businessName,
+      serviceLabel,
+      slotLabel,
+      timezone,
+      language
+    });
+    try {
+      await sendText(tenantKey, appt.customer_id, message);
+    } catch (err) {
+      try {
+        await sendSms({ to: appt.customer_id, body: message });
+      } catch (smsErr) {
+        failedNotifications.push(appt.id);
+        logger.warn("booking_range_cancellation_failed", "owner", {
+          tenantKey,
+          customerId: appt.customer_id,
+          error: smsErr.message || err.message
+        });
+      }
+    }
+  }
+  return res.json({ status: "cancelled", cancelledCount: cancelled.length, failedNotifications });
 });
 
 router.post("/pending/:customerId/reject", async (req, res) => {

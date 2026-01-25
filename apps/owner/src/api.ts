@@ -268,6 +268,13 @@ export async function createManualBooking(
   return request("/owner/appointments/manual", { method: "POST", body: JSON.stringify(payload) }, token);
 }
 
+export async function cancelBookingsInRange(
+  token: string,
+  payload: { startISO: string; endISO: string; reason?: string }
+) {
+  return request("/owner/appointments/cancel-range", { method: "POST", body: JSON.stringify(payload) }, token);
+}
+
 export async function fetchCustomerDetail(token: string, customerId: string) {
   const data = await request(`/owner/customers/${customerId}`, {}, token);
   return data;

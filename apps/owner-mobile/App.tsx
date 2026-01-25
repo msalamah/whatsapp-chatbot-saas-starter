@@ -736,6 +736,20 @@ export default function App() {
     [jwt]
   );
 
+  const cancelBookingRange = useCallback(
+    async (payload: { startISO: string; endISO: string; reason?: string }) => {
+      if (!jwt) throw new Error("Not authenticated");
+      const data = await apiRequest<{ cancelledCount: number }>(
+        "/owner/appointments/cancel-range",
+        { method: "POST", body: JSON.stringify(payload) },
+        jwt
+      );
+      await fetchData();
+      return data;
+    },
+    [jwt]
+  );
+
   const openBooking = (start?: Date) => {
     const base = start || new Date();
     const startISO = base.toISOString();
@@ -1128,6 +1142,7 @@ export default function App() {
         updateProfile,
         confirmPhoneChange,
         cancelBooking,
+        cancelBookingRange,
         createBooking,
         openBooking
       }}

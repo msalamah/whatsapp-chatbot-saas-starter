@@ -15,7 +15,7 @@ const defaultCalendar = (): OwnerCalendar => ({
 });
 
 export function SettingsScreen() {
-  const { session, calendar, refreshCalendar, saveCalendar, logout, profile, fetchProfile, updateProfile, confirmPhoneChange } = useOwner();
+  const { session, calendar, refreshCalendar, saveCalendar, logout, profile, fetchProfile, updateProfile, confirmPhoneChange, cancelBookingRange } = useOwner();
   const [draft, setDraft] = useState<OwnerCalendar>(calendar || defaultCalendar());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -34,6 +34,13 @@ export function SettingsScreen() {
   const [profileNotice, setProfileNotice] = useState<string | null>(null);
   const [phoneVerification, setPhoneVerification] = useState<{ phone: string; expiresAt?: string } | null>(null);
   const [phoneCode, setPhoneCode] = useState("");
+  const [rangePicker, setRangePicker] = useState<{ field: "start" | "end"; value: Date } | null>(null);
+  const [rangeStartISO, setRangeStartISO] = useState("");
+  const [rangeEndISO, setRangeEndISO] = useState("");
+  const [rangeReason, setRangeReason] = useState("");
+  const [rangeSaving, setRangeSaving] = useState(false);
+  const [rangeError, setRangeError] = useState<string | null>(null);
+  const [rangeNotice, setRangeNotice] = useState<string | null>(null);
 
   useEffect(() => {
     setDraft(calendar || defaultCalendar());
@@ -230,6 +237,59 @@ export function SettingsScreen() {
       setProfileError(err instanceof Error ? err.message : "Failed to verify phone");
     } finally {
       setProfileSaving(false);
+    }
+  };
+
+  const openRangePicker = (field: "start" | "end") => {
+    const value = field === "start" ? rangeStartISO : rangeEndISO;
+    const parsed = value ? new Date(value) : new Date();
+    setRangePicker({ field, value: Number.isNaN(parsed.getTime()) ? new Date() : parsed });
+  };
+
+  const handleRangePickerChange = (event: { type?: string }, date?: Date) => {
+    if (event?.type === "dismissed") {
+      setRangePicker(null);
+      return;
+    }
+    if (!date || !rangePicker) return;
+    const iso = date.toISOString();
+    if (rangePicker.field === "start") {
+      setRangeStartISO(iso);
+    } else {
+      setRangeEndISO(iso);
+    }
+    if (Platform.OS !== "ios") {
+      setRangePicker(null);
+    } else {
+      setRangePicker({ ...rangePicker, value: date });
+    }
+  };
+
+  const handleCancelRange = async () => {
+    if (!rangeStartISO || !rangeEndISO) {
+      setRangeError("Start and end are required.");
+      return;
+    }
+    const start = new Date(rangeStartISO);
+    const end = new Date(rangeEndISO);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      setRangeError("End time must be after start time.");
+      return;
+    }
+    setRangeSaving(true);
+    setRangeError(null);
+    setRangeNotice(null);
+    try {
+      const result = await cancelBookingRange({
+        startISO: rangeStartISO,
+        endISO: rangeEndISO,
+        reason: rangeReason.trim() || undefined
+      });
+      setRangeNotice(`Cancelled ${result.cancelledCount || 0} bookings.`);
+    } catch (err) {
+      setRangeError(err instanceof Error ? err.message : "Failed to cancel bookings");
+    } finally {
+      setRangeSaving(false);
     }
   };
 
@@ -436,6 +496,33 @@ export function SettingsScreen() {
             <Text style={styles.primaryButtonText}>Sign out</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={styles.settingsCard}>
+          <View style={styles.settingsHeaderRow}>
+            <Text style={styles.settingsTitle}>Cancel bookings range</Text>
+          </View>
+          <Text style={styles.muted}>Cancel all bookings within a date/time range and notify customers.</Text>
+          {rangeNotice && <Text style={styles.notice}>{rangeNotice}</Text>}
+          {rangeError && <Text style={styles.error}>{rangeError}</Text>}
+          <Text style={styles.formLabel}>Start</Text>
+          <TouchableOpacity style={styles.pickerInput} onPress={() => openRangePicker("start")}>
+            <Text style={styles.pickerText}>{formatDateTimeLabel(rangeStartISO, "Select start time")}</Text>
+          </TouchableOpacity>
+          <Text style={styles.formLabel}>End</Text>
+          <TouchableOpacity style={styles.pickerInput} onPress={() => openRangePicker("end")}>
+            <Text style={styles.pickerText}>{formatDateTimeLabel(rangeEndISO, "Select end time")}</Text>
+          </TouchableOpacity>
+          <Text style={styles.formLabel}>Reason (optional)</Text>
+          <TextInput
+            style={styles.input}
+            value={rangeReason}
+            onChangeText={setRangeReason}
+            placeholder="e.g. Closed for holiday"
+          />
+          <TouchableOpacity style={styles.primaryButton} onPress={handleCancelRange} disabled={rangeSaving}>
+            {rangeSaving ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Cancel bookings</Text>}
+          </TouchableOpacity>
+        </View>
       </ScrollView>
       <Modal transparent visible={blockPicker !== null} animationType="fade" onRequestClose={() => setBlockPicker(null)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setBlockPicker(null)}>
@@ -456,6 +543,31 @@ export function SettingsScreen() {
             )}
             {Platform.OS === "ios" ? (
               <TouchableOpacity style={[styles.primaryButton, { marginTop: 12 }]} onPress={() => setBlockPicker(null)}>
+                <Text style={styles.primaryButtonText}>Done</Text>
+              </TouchableOpacity>
+            ) : null}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+      <Modal transparent visible={rangePicker !== null} animationType="fade" onRequestClose={() => setRangePicker(null)}>
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setRangePicker(null)}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.sectionTitle}>Select time</Text>
+              <TouchableOpacity onPress={() => setRangePicker(null)}>
+                <Text style={styles.viewSheetClose}>Close</Text>
+              </TouchableOpacity>
+            </View>
+            {rangePicker && (
+              <DateTimePicker
+                value={rangePicker.value}
+                mode="datetime"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={handleRangePickerChange}
+              />
+            )}
+            {Platform.OS === "ios" ? (
+              <TouchableOpacity style={[styles.primaryButton, { marginTop: 12 }]} onPress={() => setRangePicker(null)}>
                 <Text style={styles.primaryButtonText}>Done</Text>
               </TouchableOpacity>
             ) : null}

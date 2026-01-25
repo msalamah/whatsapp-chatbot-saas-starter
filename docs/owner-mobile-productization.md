@@ -397,23 +397,28 @@ Acceptance checks:
 - Confirmation/cancellation content is readable and correctly formatted.
 Status: complete
 
-### P1-4) Owner blackout ranges (date + time)
+### P1-4) Bulk cancel bookings by date/time range
 
-Goal: Allow owners to block full days, date ranges, or specific hours so no bookings can be created.
+Goal: Allow owners to cancel all bookings within a selected full day, partial day, or multi-day range, and notify customers.
 
 Implementation details:
 - Backend:
-  - Extend calendar blocks to support full-day, multi-day, and partial-day ranges (store start/end ISO boundaries).
-  - Ensure availability calculation excludes blocked ranges.
+  - Add `POST /owner/appointments/cancel-range` with `startISO`, `endISO`, optional `reason`.
+  - Cancel all matching appointments for the tenant (set status + cancelled_at).
+  - Send cancellation message to each affected customer (WhatsApp preferred, SMS fallback).
+  - Return summary `{ cancelledCount, failedNotifications }`.
 - Mobile:
-  - Add a “Block dates/times” action that lets owners pick a start and end datetime.
-  - Save as calendar blocks in Settings.
+  - Add a “Cancel range” action in Calendar/Settings.
+  - Date/time range picker (start/end) + reason field.
+  - Confirm before sending bulk cancellations.
 - Web:
-  - Add a “Block dates/times” action in calendar settings with datetime range inputs.
+  - Add a “Cancel range” action in Calendar/Settings.
+  - Date/time range inputs + reason field.
+  - Confirm before sending bulk cancellations.
 
 Acceptance checks:
-- Blocked date ranges remove availability and prevent booking creation.
-Status: pending
+- Cancelling a range removes all bookings in that range and notifies customers.
+Status: complete
 ### 18) Date/time pickers for booking + calendar blocks
 
 Goal: Remove raw ISO inputs for bookings and block times to reduce errors.

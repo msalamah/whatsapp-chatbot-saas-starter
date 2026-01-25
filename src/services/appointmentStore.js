@@ -72,3 +72,17 @@ export async function cancelAppointment({ tenantKey, appointmentId, reason = nul
   );
   return res.rows[0] || null;
 }
+
+export async function cancelAppointmentsInRange({ tenantKey, startISO, endISO, reason = null }) {
+  const res = await query(
+    `UPDATE appointments
+     SET status = 'cancelled', cancelled_at = now(), cancelled_reason = $4
+     WHERE tenant_key = $1
+       AND status != 'cancelled'
+       AND start_iso::timestamptz >= $2::timestamptz
+       AND start_iso::timestamptz <= $3::timestamptz
+     RETURNING *`,
+    [tenantKey, startISO, endISO, reason]
+  );
+  return res.rows || [];
+}

@@ -50,6 +50,7 @@ export type OwnerContextValue = {
   }) => Promise<{ status: string; profile: OwnerProfile; phone?: string; expiresAt?: string }>;
   confirmPhoneChange: (phone: string, code: string) => Promise<{ status: string; profile: OwnerProfile }>;
   cancelBooking: (appointmentId: string) => Promise<void>;
+  cancelBookingRange: (payload: { startISO: string; endISO: string; reason?: string }) => Promise<{ cancelledCount: number }>;
   createBooking: (payload: {
     customerName: string;
     customerPhone: string;

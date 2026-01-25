@@ -21,6 +21,7 @@ import {
   updateOwnerProfile,
   confirmOwnerPhoneChange,
   createManualBooking
+  , cancelBookingsInRange
 } from "./api";
 import { OwnerAuthForm } from "./components/OwnerAuthForm";
 import { PendingList } from "./components/PendingList";
@@ -93,6 +94,12 @@ export default function App() {
   const [bookingSaving, setBookingSaving] = useState(false);
   const [webPushStatus, setWebPushStatus] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [rangeStartISO, setRangeStartISO] = useState("");
+  const [rangeEndISO, setRangeEndISO] = useState("");
+  const [rangeReason, setRangeReason] = useState("");
+  const [rangeError, setRangeError] = useState<string | null>(null);
+  const [rangeNotice, setRangeNotice] = useState<string | null>(null);
+  const [rangeSaving, setRangeSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -496,6 +503,38 @@ export default function App() {
     }
   }
 
+  async function handleCancelRange() {
+    if (!token) return;
+    if (!rangeStartISO || !rangeEndISO) {
+      setRangeError("Start and end are required.");
+      return;
+    }
+    const start = new Date(rangeStartISO);
+    const end = new Date(rangeEndISO);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
+      setRangeError("End time must be after start time.");
+      return;
+    }
+    const ok = window.confirm("Cancel all bookings in this range and notify customers?");
+    if (!ok) return;
+    setRangeSaving(true);
+    setRangeError(null);
+    setRangeNotice(null);
+    try {
+      const result = await cancelBookingsInRange(token, {
+        startISO: rangeStartISO,
+        endISO: rangeEndISO,
+        reason: rangeReason.trim() || undefined
+      });
+      setRangeNotice(`Cancelled ${result.cancelledCount || 0} bookings.`);
+      await refreshData(token);
+    } catch (err) {
+      setRangeError(err instanceof Error ? err.message : "Failed to cancel bookings");
+    } finally {
+      setRangeSaving(false);
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
@@ -606,6 +645,46 @@ export default function App() {
 
         <section className="section-card">
           <CalendarSettings calendar={calendar} saving={calendarSaving} onSave={handleSaveCalendar} />
+        </section>
+
+        <section className="section-card">
+          <div className="section-header">
+            <div>
+              <h3>Cancel bookings range</h3>
+              <p className="muted">Cancel all bookings in a date/time range.</p>
+            </div>
+            <button onClick={handleCancelRange} disabled={rangeSaving}>
+              {rangeSaving ? "Cancelling…" : "Cancel range"}
+            </button>
+          </div>
+          {rangeNotice && <p className="notice">{rangeNotice}</p>}
+          {rangeError && <p className="error">{rangeError}</p>}
+          <div className="profile-grid">
+            <div className="profile-row">
+              <label>Start</label>
+              <input
+                type="datetime-local"
+                value={toLocalInput(rangeStartISO)}
+                onChange={(e) => setRangeStartISO(fromLocalInput(e.target.value))}
+              />
+            </div>
+            <div className="profile-row">
+              <label>End</label>
+              <input
+                type="datetime-local"
+                value={toLocalInput(rangeEndISO)}
+                onChange={(e) => setRangeEndISO(fromLocalInput(e.target.value))}
+              />
+            </div>
+            <div className="profile-row">
+              <label>Reason</label>
+              <input
+                value={rangeReason}
+                onChange={(e) => setRangeReason(e.target.value)}
+                placeholder="Optional reason"
+              />
+            </div>
+          </div>
         </section>
 
         <section className="section-card">
