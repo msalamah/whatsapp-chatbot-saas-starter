@@ -727,6 +727,15 @@ export default function App() {
     [jwt]
   );
 
+  const cancelBooking = useCallback(
+    async (appointmentId: string) => {
+      if (!jwt) return;
+      await apiRequest(`/owner/appointments/${appointmentId}/cancel`, { method: "POST" }, jwt);
+      await fetchData();
+    },
+    [jwt]
+  );
+
   const openBooking = (start?: Date) => {
     const base = start || new Date();
     const startISO = base.toISOString();
@@ -1118,6 +1127,7 @@ export default function App() {
         fetchProfile,
         updateProfile,
         confirmPhoneChange,
+        cancelBooking,
         createBooking,
         openBooking
       }}

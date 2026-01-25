@@ -49,6 +49,7 @@ export type OwnerContextValue = {
     timezone?: string;
   }) => Promise<{ status: string; profile: OwnerProfile; phone?: string; expiresAt?: string }>;
   confirmPhoneChange: (phone: string, code: string) => Promise<{ status: string; profile: OwnerProfile }>;
+  cancelBooking: (appointmentId: string) => Promise<void>;
   createBooking: (payload: {
     customerName: string;
     customerPhone: string;

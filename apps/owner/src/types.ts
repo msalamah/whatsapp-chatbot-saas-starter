@@ -42,6 +42,7 @@ export interface Appointment {
   slot_label?: string;
   start_iso?: string;
   end_iso?: string;
+  status?: string;
 }
 
 export interface OwnerCredentials {

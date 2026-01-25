@@ -101,9 +101,15 @@ export async function initializeDatabase() {
       end_iso text,
       slot_label text,
       notes text,
+      status text DEFAULT 'booked',
+      cancelled_at timestamptz,
+      cancelled_reason text,
       created_at timestamptz DEFAULT now()
     );
   `);
+  await query("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS status text DEFAULT 'booked'");
+  await query("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancelled_at timestamptz");
+  await query("ALTER TABLE appointments ADD COLUMN IF NOT EXISTS cancelled_reason text");
 
   await query(`
     CREATE TABLE IF NOT EXISTS conversations (

@@ -92,6 +92,7 @@ export default function App() {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSaving, setBookingSaving] = useState(false);
   const [webPushStatus, setWebPushStatus] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [customerQuery, setCustomerQuery] = useState("");
@@ -474,6 +475,27 @@ export default function App() {
     }
   }
 
+  async function handleCancelBooking(appointmentId: string) {
+    if (!token) return;
+    const ok = window.confirm("Cancel this booking and notify the customer?");
+    if (!ok) return;
+    setCancellingId(appointmentId);
+    try {
+      await fetch(`${import.meta.env.VITE_API_BASE_URL || window.location.origin}/owner/appointments/${appointmentId}/cancel`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        }
+      });
+      await refreshData(token);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to cancel booking");
+    } finally {
+      setCancellingId(null);
+    }
+  }
+
   function handleLogout() {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(REFRESH_KEY);
@@ -565,7 +587,7 @@ export default function App() {
             />
           </div>
           <div className="section-card">
-            <AppointmentsList items={appointments} />
+            <AppointmentsList items={appointments} onCancel={handleCancelBooking} cancellingId={cancellingId} />
           </div>
         </section>
 

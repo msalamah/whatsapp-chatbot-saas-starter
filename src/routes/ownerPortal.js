@@ -4,7 +4,13 @@ import { fileURLToPath } from "url";
 import { getTenantByKey, registerOwnerTenant, getServiceById } from "../tenants/tenantManager.js";
 import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
-import { listAppointmentsForTenant, listAppointmentsForCustomer, createAppointment } from "../services/appointmentStore.js";
+import {
+  listAppointmentsForTenant,
+  listAppointmentsForCustomer,
+  createAppointment,
+  getAppointmentById,
+  cancelAppointment
+} from "../services/appointmentStore.js";
 import { listCustomersForTenant, getCustomerDetail } from "../services/customerStore.js";
 import { listServicesForTenantKey, updateTenant } from "../tenants/tenantManager.js";
 import { validateOwnerServiceUpdate } from "../tenants/tenantValidation.js";
@@ -722,6 +728,43 @@ router.post("/appointments/manual", async (req, res) => {
       notes: notes || null
     }
   });
+});
+
+router.post("/appointments/:appointmentId/cancel", async (req, res) => {
+  const appointmentId = req.params.appointmentId;
+  const reason = req.body?.reason ? String(req.body.reason).trim() : null;
+  const tenantKey = req.owner.tenantKey;
+  const appointment = await getAppointmentById({ tenantKey, appointmentId });
+  if (!appointment) {
+    return sendError(res, { code: "APPOINTMENT_NOT_FOUND", message: "Appointment not found", status: 404 });
+  }
+  if (appointment.status === "cancelled") {
+    return res.json({ status: "already_cancelled" });
+  }
+  const cancelled = await cancelAppointment({ tenantKey, appointmentId, reason });
+  const tenant = await getTenantByKey(tenantKey);
+  const calendar = await getCalendar(tenantKey);
+  const timezone = calendar?.timezone || tenant?.calendar?.timezone || "UTC";
+  const slotLabel = cancelled?.start_iso ? formatBookingDateTime(cancelled.start_iso, timezone) : "";
+  if (appointment.customer_id) {
+    const serviceLabel = appointment.service_name || "Service";
+    const businessName = tenant?.displayName || "your salon";
+    const message = `Your booking at ${businessName} for ${serviceLabel} on ${slotLabel} has been cancelled.`;
+    try {
+      await sendText(tenantKey, appointment.customer_id, message);
+    } catch (err) {
+      try {
+        await sendSms({ to: appointment.customer_id, body: message });
+      } catch (smsErr) {
+        logger.warn("booking_cancellation_failed", "owner", {
+          tenantKey,
+          customerId: appointment.customer_id,
+          error: smsErr.message || err.message
+        });
+      }
+    }
+  }
+  return res.json({ status: "cancelled", appointment: cancelled });
 });
 
 router.post("/pending/:customerId/reject", async (req, res) => {

@@ -2,9 +2,11 @@ import { Appointment } from "../types";
 
 interface Props {
   items: Appointment[];
+  onCancel?: (appointmentId: string) => void;
+  cancellingId?: string | null;
 }
 
-export function AppointmentsList({ items }: Props) {
+export function AppointmentsList({ items, onCancel, cancellingId }: Props) {
   return (
     <section>
       <header className="section-header">
@@ -18,6 +20,15 @@ export function AppointmentsList({ items }: Props) {
               <strong>{appt.service_name || "Service"}</strong>
               <div className="muted">{appt.slot_label || appt.start_iso || ""}</div>
             </div>
+            {onCancel ? (
+              <button
+                className="ghost danger"
+                onClick={() => onCancel(appt.id)}
+                disabled={cancellingId === appt.id}
+              >
+                {cancellingId === appt.id ? "Cancelling…" : "Cancel"}
+              </button>
+            ) : null}
           </li>
         ))}
       </ul>

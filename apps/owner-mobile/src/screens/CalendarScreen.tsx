@@ -7,7 +7,7 @@ import { styles } from "../styles";
 import { Appointment } from "../types";
 
 export function CalendarScreen() {
-  const { fetchAppointmentsByRange, pending, openBooking } = useOwner();
+  const { fetchAppointmentsByRange, pending, openBooking, cancelBooking } = useOwner();
   const [view, setView] = useState<"day" | "week" | "month">("month");
   const [items, setItems] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(false);
@@ -25,6 +25,9 @@ export function CalendarScreen() {
   };
   const [selectedDate, setSelectedDate] = useState<string>(() => toLocalDateString(new Date()));
   const [viewPickerVisible, setViewPickerVisible] = useState(false);
+  const [detailEvent, setDetailEvent] = useState<CalendarEventType | null>(null);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const [canceling, setCanceling] = useState(false);
 
   const loadAppointments = useCallback(async (showSpinner = true) => {
     if (!fetchAppointmentsByRange) return;
@@ -70,6 +73,7 @@ export function CalendarScreen() {
 
   type CalendarEventType = {
     id: string;
+    appointmentId?: string;
     title: string;
     start: Date;
     end: Date;
@@ -85,6 +89,7 @@ export function CalendarScreen() {
       if (Number.isNaN(start.getTime())) return;
       parsed.push({
         id: `appt-${appt.id}`,
+        appointmentId: appt.id,
         title: appt.service_name || "Appointment",
         start,
         end: normalizeEnd(start),
@@ -344,12 +349,20 @@ export function CalendarScreen() {
                                     : { borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.12)" }
                                 ]}
                               >
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    setDetailEvent(event);
+                                    setDetailVisible(true);
+                                  }}
+                                  activeOpacity={0.8}
+                                >
                                 <Text style={[styles.calendarEventTitle, { fontSize: 12 }]} numberOfLines={1} ellipsizeMode="tail">
                                   {event.title}
                                 </Text>
                                 <Text style={[styles.calendarEventMeta, { fontSize: 11 }]} numberOfLines={1} ellipsizeMode="tail">
                                   {formatTime(new Date(event.start))} – {formatTime(new Date(event.end))} {event.slot ? `· ${event.slot}` : ""}
                                 </Text>
+                                </TouchableOpacity>
                               </View>
                             ))
                           )}
@@ -401,12 +414,20 @@ export function CalendarScreen() {
                                     : { borderColor: "#0ea5e9", backgroundColor: "rgba(14,165,233,0.12)" }
                                 ]}
                               >
+                                <TouchableOpacity
+                                  onPress={() => {
+                                    setDetailEvent(event);
+                                    setDetailVisible(true);
+                                  }}
+                                  activeOpacity={0.8}
+                                >
                                 <Text style={[styles.calendarEventTitle, { fontSize: 12 }]} numberOfLines={1} ellipsizeMode="tail">
                                   {event.title}
                                 </Text>
                                 <Text style={[styles.calendarEventMeta, { fontSize: 11 }]} numberOfLines={1} ellipsizeMode="tail">
                                   {formatTime(new Date(event.start))} – {formatTime(new Date(event.end))}
                                 </Text>
+                                </TouchableOpacity>
                               </View>
                             ))}
                           </TouchableOpacity>
@@ -419,6 +440,46 @@ export function CalendarScreen() {
             )}
           </CalendarProvider>
         )}
+        <Modal transparent visible={detailVisible} animationType="fade" onRequestClose={() => setDetailVisible(false)}>
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setDetailVisible(false)}>
+            <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.sectionTitle}>Booking</Text>
+                <TouchableOpacity onPress={() => setDetailVisible(false)}>
+                  <Text style={styles.ghostButtonText}>Close</Text>
+                </TouchableOpacity>
+              </View>
+              <ScrollView contentContainerStyle={styles.modalContent}>
+                {detailEvent ? (
+                  <>
+                    <Text style={styles.cardTitle}>{detailEvent.title}</Text>
+                    <Text style={styles.cardSubtitle}>
+                      {detailEvent.start.toLocaleString()} – {detailEvent.end.toLocaleString()}
+                    </Text>
+                    {detailEvent.slot ? <Text style={styles.cardSubtitle}>{detailEvent.slot}</Text> : null}
+                    {detailEvent.type === "appointment" && detailEvent.appointmentId ? (
+                      <TouchableOpacity
+                        style={[styles.actionButton, styles.reject]}
+                        onPress={async () => {
+                          setCanceling(true);
+                          try {
+                            await cancelBooking(detailEvent.appointmentId);
+                            setDetailVisible(false);
+                          } finally {
+                            setCanceling(false);
+                          }
+                        }}
+                        disabled={canceling}
+                      >
+                        <Text style={styles.actionButtonText}>{canceling ? "Cancelling..." : "Cancel booking"}</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </>
+                ) : null}
+              </ScrollView>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
         <Modal transparent visible={viewPickerVisible} animationType="fade" onRequestClose={() => setViewPickerVisible(false)}>
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setViewPickerVisible(false)}>
             <View style={styles.viewSheet}>

@@ -381,7 +381,7 @@ Implementation details:
 
 Acceptance checks:
 - Cancelling a booking removes it from upcoming lists and notifies the customer.
-Status: pending
+Status: complete
 
 ### P1-3) Confirmation + cancellation content and localization
 

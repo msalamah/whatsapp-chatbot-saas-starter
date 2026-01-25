@@ -20,6 +20,9 @@ export type Appointment = {
   service_name?: string;
   slot_label?: string;
   start_iso?: string;
+  end_iso?: string;
+  customer_id?: string;
+  status?: string;
 };
 
 export type CalendarRule = {
