@@ -53,6 +53,7 @@ const APPOINTMENT_LIMIT = 50;
 const CUSTOMER_LIMIT = 100;
 
 export default function App() {
+  const [isOffline, setIsOffline] = useState(() => !navigator.onLine);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
   const [refreshToken, setRefreshToken] = useState<string | null>(() => localStorage.getItem(REFRESH_KEY));
   const [tenant, setTenant] = useState<TenantInfo | null>(() => {
@@ -99,6 +100,17 @@ export default function App() {
   const [showCustomersPage, setShowCustomersPage] = useState(false);
 
   const isLoggedIn = Boolean(token && tenant);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -482,6 +494,7 @@ export default function App() {
   if (!isLoggedIn) {
     return (
       <main className="owner-page owner-login">
+        {isOffline && <div className="top-banner warn">You appear offline. Check your connection.</div>}
         <OwnerAuthForm
           loading={loading}
           error={error}
@@ -495,6 +508,8 @@ export default function App() {
 
   return (
     <main className="owner-page">
+      {isOffline && <div className="top-banner warn">You appear offline. Some actions may fail.</div>}
+      {error && <div className="top-banner error">{error}</div>}
       <div className="owner-shell">
         <header className="owner-header">
           <div>
@@ -529,7 +544,7 @@ export default function App() {
           </div>
         </section>
 
-        {error && <p className="error">{error}</p>}
+        
 
         <section className="section-card">
           <AnalyticsCards analytics={analytics} />

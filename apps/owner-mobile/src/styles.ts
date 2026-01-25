@@ -5,6 +5,9 @@ export const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f7fb"
   },
+  appShell: {
+    flex: 1
+  },
   scroll: {
     flex: 1
   },
@@ -94,6 +97,15 @@ export const styles = StyleSheet.create({
   helperText: {
     fontSize: 13,
     color: "#475569"
+  },
+  banner: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: "#fde68a"
+  },
+  bannerText: {
+    color: "#92400e",
+    fontWeight: "600"
   },
   notice: {
     fontSize: 13,

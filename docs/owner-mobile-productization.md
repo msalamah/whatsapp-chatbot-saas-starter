@@ -437,4 +437,4 @@ Implementation details:
 Acceptance checks:
 - Every list has a meaningful empty state.
 - Offline or failed requests show a consistent and actionable message.
-Status: pending
+Status: complete

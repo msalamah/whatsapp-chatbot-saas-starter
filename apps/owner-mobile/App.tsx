@@ -20,6 +20,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import { Calendar as MonthCalendar } from "react-native-calendars";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import NetInfo from "@react-native-community/netinfo";
 import {
   apiRequest,
   requestOwnerOtp,
@@ -155,6 +156,7 @@ export default function App() {
   const [bookingNotes, setBookingNotes] = useState("");
   const [bookingSaving, setBookingSaving] = useState(false);
   const [bookingPicker, setBookingPicker] = useState<{ target: "start" | "end"; value: Date } | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
   const [availFrom, setAvailFrom] = useState(() => new Date().toISOString());
   const [availTo, setAvailTo] = useState(() => {
     const d = new Date();
@@ -205,6 +207,14 @@ export default function App() {
         // best-effort restore
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      const offline = !(state.isConnected && state.isInternetReachable !== false);
+      setIsOffline(Boolean(offline));
+    });
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -826,6 +836,11 @@ export default function App() {
     return (
       <SafeAreaView style={styles.safe}>
         <StatusBar style="dark" />
+        {isOffline && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>You appear offline. Check your connection.</Text>
+          </View>
+        )}
         <View style={styles.container}>
           <Text style={styles.title}>Owner login</Text>
           {!otpSent && !registerMode ? (
@@ -1107,52 +1122,59 @@ export default function App() {
         openBooking
       }}
     >
-      <NavigationContainer>
+      <View style={styles.appShell}>
         <StatusBar style="dark" />
-        <Tab.Navigator
-          screenOptions={({ route }) => ({
-            headerShown: false,
-            tabBarStyle: {
-              height: 70,
-              paddingHorizontal: 20,
-              paddingBottom: 12,
-              paddingTop: 12
-            },
-            tabBarIcon: ({ focused }) => {
-              let icon: "home" | "home-outline" | "calendar" | "calendar-outline" | "people" | "people-outline" | "briefcase" | "briefcase-outline" | "settings" | "settings-outline";
-              switch (route.name) {
-                case "Home":
-                  icon = focused ? "home" : "home-outline";
-                  break;
-                case "Calendar":
-                  icon = focused ? "calendar" : "calendar-outline";
-                  break;
-                case "Customers":
-                  icon = focused ? "people" : "people-outline";
-                  break;
-                case "Services":
-                  icon = focused ? "briefcase" : "briefcase-outline";
-                  break;
-                case "Settings":
-                default:
-                  icon = focused ? "settings" : "settings-outline";
-                  break;
+        {isOffline && (
+          <View style={styles.banner}>
+            <Text style={styles.bannerText}>You appear offline. Some actions may fail.</Text>
+          </View>
+        )}
+        <NavigationContainer>
+          <Tab.Navigator
+            screenOptions={({ route }) => ({
+              headerShown: false,
+              tabBarStyle: {
+                height: 70,
+                paddingHorizontal: 20,
+                paddingBottom: 12,
+                paddingTop: 12
+              },
+              tabBarIcon: ({ focused }) => {
+                let icon: "home" | "home-outline" | "calendar" | "calendar-outline" | "people" | "people-outline" | "briefcase" | "briefcase-outline" | "settings" | "settings-outline";
+                switch (route.name) {
+                  case "Home":
+                    icon = focused ? "home" : "home-outline";
+                    break;
+                  case "Calendar":
+                    icon = focused ? "calendar" : "calendar-outline";
+                    break;
+                  case "Customers":
+                    icon = focused ? "people" : "people-outline";
+                    break;
+                  case "Services":
+                    icon = focused ? "briefcase" : "briefcase-outline";
+                    break;
+                  case "Settings":
+                  default:
+                    icon = focused ? "settings" : "settings-outline";
+                    break;
+                }
+                return (
+                  <View style={[styles.tabBadge, focused && styles.tabBadgeActive]}>
+                    <Ionicons name={icon} size={22} color={focused ? "#0ea5e9" : "#94a3b8"} />
+                  </View>
+                );
               }
-              return (
-                <View style={[styles.tabBadge, focused && styles.tabBadgeActive]}>
-                  <Ionicons name={icon} size={22} color={focused ? "#0ea5e9" : "#94a3b8"} />
-                </View>
-              );
-            }
-          })}
-        >
-          <Tab.Screen name="Home" component={HomeScreen} />
-          <Tab.Screen name="Calendar" component={CalendarScreen} />
-          <Tab.Screen name="Customers" component={CustomersScreen} />
-          <Tab.Screen name="Services" component={ServicesScreen} />
-          <Tab.Screen name="Settings" component={SettingsScreen} />
-        </Tab.Navigator>
-      </NavigationContainer>
+            })}
+          >
+            <Tab.Screen name="Home" component={HomeScreen} />
+            <Tab.Screen name="Calendar" component={CalendarScreen} />
+            <Tab.Screen name="Customers" component={CustomersScreen} />
+            <Tab.Screen name="Services" component={ServicesScreen} />
+            <Tab.Screen name="Settings" component={SettingsScreen} />
+          </Tab.Navigator>
+        </NavigationContainer>
+      </View>
       <Modal transparent visible={bookingVisible} animationType="slide" onRequestClose={() => setBookingVisible(false)}>
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setBookingVisible(false)}>
           <TouchableOpacity activeOpacity={1} style={styles.modalCard} onPress={() => {}}>

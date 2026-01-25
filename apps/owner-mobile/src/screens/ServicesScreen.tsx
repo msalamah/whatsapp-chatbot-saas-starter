@@ -21,11 +21,19 @@ export function ServicesScreen() {
   const [busy, setBusy] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [activeService, setActiveService] = useState<ServiceRecord | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const form = useForm({ defaultValues: EMPTY_SERVICE });
 
   useEffect(() => {
     if (!services.length) {
-      fetchServices();
+      (async () => {
+        try {
+          await fetchServices();
+          setError(null);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Failed to load services");
+        }
+      })();
     }
   }, [services.length, fetchServices]);
 
@@ -39,6 +47,7 @@ export function ServicesScreen() {
     setBusy(true);
     try {
       await deleteService(serviceId);
+      setError(null);
     } finally {
       setBusy(false);
     }
@@ -51,7 +60,10 @@ export function ServicesScreen() {
         ...values,
         id: activeService?.id || values.id
       });
+      setError(null);
       setShowModal(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save service");
     } finally {
       setBusy(false);
     }
@@ -66,6 +78,7 @@ export function ServicesScreen() {
             <Text style={styles.ghostButtonText}>Add service</Text>
           </TouchableOpacity>
         </View>
+        {error && <Text style={styles.error}>{error}</Text>}
         {!services.length && <Text style={styles.muted}>No services configured.</Text>}
         {services.map((service) => (
           <View key={service.id} style={styles.card}>
