@@ -1194,6 +1194,7 @@ export default function App() {
                 onChangeText={setBookingPhone}
                 placeholder="Phone (used as customer id)"
               />
+              <Text style={styles.helperText}>We will send a confirmation message to the customer.</Text>
               <Text style={styles.formLabel}>Service</Text>
               <View style={styles.pillGroup}>
                 {services.map((svc) => (

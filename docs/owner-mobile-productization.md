@@ -337,6 +337,83 @@ Acceptance checks:
 - Submitting with a local number produces an actionable error and does not send a request.
 Status: complete
 
+## Phase 1 Production Readiness (owner-created bookings)
+
+This section is specific to the first production phase: owners manually add bookings and customers receive confirmations.
+
+### P1-1) Customer booking confirmation message (backend + templates)
+
+Goal: When an owner creates a manual booking, the customer receives a confirmation message without requiring any user input.
+
+Implementation details:
+- Backend:
+  - Extend `POST /owner/appointments/manual` to trigger a confirmation notification after appointment creation.
+  - Use WhatsApp if the tenant has WABA credentials and the customer phone is valid; fall back to SMS if WhatsApp is not configured.
+  - Add a message template that includes: business name, service name, date/time, timezone, and contact info.
+  - Log message send result (success/failure) for troubleshooting.
+- Configuration:
+  - Require WhatsApp credentials (WABA token + phone number ID) or SMS credentials (Twilio) for production.
+
+Web counterpart:
+- No UI changes required, but add a note in the booking modal that a confirmation will be sent.
+
+Acceptance checks:
+- Creating a manual booking sends a WhatsApp or SMS confirmation to the customer.
+- Failures are logged without breaking booking creation.
+Status: complete
+
+### P1-2) Owner-initiated cancellation with customer notification
+
+Goal: Allow owners to cancel a booking and notify the customer automatically.
+
+Implementation details:
+- Backend:
+  - Add `POST /owner/appointments/:id/cancel` (JWT required).
+  - Mark the appointment as cancelled (status + timestamps) without deleting it.
+  - Send a cancellation message to the customer (WhatsApp preferred, SMS fallback).
+  - Ensure calendar views exclude cancelled appointments or mark them clearly.
+- Mobile:
+  - Add a cancel action in appointment detail (or a long-press action in calendar).
+  - Confirm cancellation with a modal before sending.
+- Web:
+  - Add a cancel action in the appointments list and/or calendar event detail.
+  - Confirm cancellation with a modal before sending.
+
+Acceptance checks:
+- Cancelling a booking removes it from upcoming lists and notifies the customer.
+Status: pending
+
+### P1-3) Confirmation + cancellation content and localization
+
+Goal: Ensure messages are clear and formatted using tenant timezone.
+
+Implementation details:
+- Backend:
+  - Format date/time using tenant timezone.
+  - Support basic language selection (default to tenant language or fallback to English).
+  - Ensure message content fits SMS/WhatsApp limits.
+
+Acceptance checks:
+- Confirmation/cancellation content is readable and correctly formatted.
+Status: pending
+
+### P1-4) Owner blackout ranges (date + time)
+
+Goal: Allow owners to block full days, date ranges, or specific hours so no bookings can be created.
+
+Implementation details:
+- Backend:
+  - Extend calendar blocks to support full-day, multi-day, and partial-day ranges (store start/end ISO boundaries).
+  - Ensure availability calculation excludes blocked ranges.
+- Mobile:
+  - Add a “Block dates/times” action that lets owners pick a start and end datetime.
+  - Save as calendar blocks in Settings.
+- Web:
+  - Add a “Block dates/times” action in calendar settings with datetime range inputs.
+
+Acceptance checks:
+- Blocked date ranges remove availability and prevent booking creation.
+Status: pending
 ### 18) Date/time pickers for booking + calendar blocks
 
 Goal: Remove raw ISO inputs for bookings and block times to reduce errors.

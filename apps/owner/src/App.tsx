@@ -723,6 +723,9 @@ export default function App() {
                 rows={3}
               />
             </div>
+            <p className="muted" style={{ marginTop: "0.5rem" }}>
+              A confirmation message will be sent to the customer.
+            </p>
             <div className="booking-actions">
               <button onClick={handleSaveBooking} disabled={bookingSaving}>
                 {bookingSaving ? "Saving…" : "Save booking"}

@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { getTenantByKey, registerOwnerTenant } from "../tenants/tenantManager.js";
+import { getTenantByKey, registerOwnerTenant, getServiceById } from "../tenants/tenantManager.js";
 import { listPendingByTenant } from "../services/pendingBookingStore.js";
 import { approvePendingBooking, rejectPendingBooking } from "../services/approvalService.js";
 import { listAppointmentsForTenant, listAppointmentsForCustomer, createAppointment } from "../services/appointmentStore.js";
@@ -23,12 +23,14 @@ import {
   updateOwnerById
 } from "../services/ownerStore.js";
 import { createOwnerOtp, validateOwnerPreauth, verifyOwnerOtp } from "../services/ownerOtpStore.js";
-import { sendOtpSms } from "../services/notificationService.js";
+import { sendOtpSms, sendSms } from "../services/notificationService.js";
+import { sendText } from "../services/whatsappService.js";
 import { createOwnerRefreshToken, rotateOwnerRefreshToken } from "../services/ownerSessionStore.js";
 import { createRateLimiter, ipRateLimiter } from "../middleware/rateLimit.js";
 import { getLatestOwnerDevice, upsertOwnerDevice } from "../services/ownerDeviceStore.js";
 import { deleteCustomerData } from "../services/privacyService.js";
 import { v4 as uuidv4 } from "uuid";
+import { logger } from "../utils/logger.js";
 import { sendWebPush } from "../services/webPushService.js";
 
 const router = express.Router();
@@ -151,6 +153,12 @@ function normalizeCalendarPayload(payload = {}) {
     rules,
     blocks
   };
+}
+
+function formatBookingDateTime(iso, timezone) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short", timeZone: timezone || "UTC" });
 }
 
 router.post("/login", async (req, res) => {
@@ -659,12 +667,11 @@ router.post("/appointments/manual", async (req, res) => {
     end.setMinutes(end.getMinutes() + 45);
   }
   const tenantKey = req.owner.tenantKey;
+  const tenant = await getTenantByKey(tenantKey);
+  const calendar = await getCalendar(tenantKey);
+  const timezone = calendar?.timezone || tenant?.calendar?.timezone || "UTC";
   const customerId = customerPhone || uuidv4();
-  const slotLabel = new Date(startISO).toLocaleString("en-US", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: req.owner?.calendar?.timezone || "UTC"
-  });
+  const slotLabel = formatBookingDateTime(startISO, timezone);
 
   await upsertCustomer({
     id: customerId,
@@ -683,6 +690,26 @@ router.post("/appointments/manual", async (req, res) => {
     slotLabel,
     notes: notes || null
   });
+
+  if (customerPhone) {
+    const resolvedService = serviceId ? getServiceById(tenant, serviceId) : null;
+    const serviceLabel = serviceName || resolvedService?.name || "Service";
+    const businessName = tenant?.displayName || "your salon";
+    const message = `Your booking is confirmed at ${businessName} for ${serviceLabel} on ${slotLabel} (${timezone}).`;
+    try {
+      await sendText(tenantKey, customerPhone, message);
+    } catch (err) {
+      try {
+        await sendSms({ to: customerPhone, body: message });
+      } catch (smsErr) {
+        logger.warn("booking_confirmation_failed", "owner", {
+          tenantKey,
+          customerPhone,
+          error: smsErr.message || err.message
+        });
+      }
+    }
+  }
 
   res.json({
     appointment: {

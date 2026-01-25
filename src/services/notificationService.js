@@ -53,3 +53,20 @@ export async function sendOtpEmail({ to, code }) {
     throw err;
   }
 }
+
+export async function sendSms({ to, body }) {
+  if (!twilioClient || !process.env.TWILIO_PHONE_NUMBER) {
+    logger.info("SMS", "sms", { to, body, note: "Twilio not configured" });
+    return;
+  }
+  try {
+    await twilioClient.messages.create({
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to,
+      body
+    });
+  } catch (err) {
+    logger.error("Failed to send SMS", "sms", { to, error: err.message });
+    throw err;
+  }
+}
